@@ -842,6 +842,7 @@
         const DOMAINS_KEY = 'crm_manager_v1_domains';
         const PRIVATE_VERIFY_KEY = 'crm_manager_v1_private_verify';
         const PRIVATE_DATA_KEY = 'crm_manager_v1_private_data';
+        const VAULT_DATA_KEY = 'crm_manager_v2_vault_data';
 
         let crms = [];
         let domains = [];
@@ -955,7 +956,7 @@
             if (lockTimer) clearTimeout(lockTimer);
             lockTimer = setTimeout(() => {
                 lockPrivate();
-                toast('Sección privada bloqueada por inactividad');
+                toast('Caja fuerte bloqueada por inactividad');
             }, 600000); // 10 minutos
         }
 
@@ -973,16 +974,64 @@
             return sectorColorMap[sector];
         }
 
-        function load() {
+        function parseStoredArray(key) {
             try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                if (raw) crms = JSON.parse(raw);
-            } catch (e) { crms = []; }
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
 
-            try {
-                const rawDom = localStorage.getItem(DOMAINS_KEY);
-                if (rawDom) domains = JSON.parse(rawDom);
-            } catch (e) { domains = []; }
+        function hasMasterPassword() {
+            return !!localStorage.getItem(PRIVATE_VERIFY_KEY);
+        }
+
+        function clearLegacyPublicData() {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(DOMAINS_KEY);
+        }
+
+        function normalizeVaultPayload(payload) {
+            return {
+                crms: Array.isArray(payload?.crms) ? payload.crms : [],
+                domains: Array.isArray(payload?.domains) ? payload.domains : [],
+                privateItems: Array.isArray(payload?.privateItems) ? payload.privateItems : []
+            };
+        }
+
+        function loadLegacyPublicData() {
+            crms = parseStoredArray(STORAGE_KEY);
+            domains = parseStoredArray(DOMAINS_KEY);
+        }
+
+        async function loadVault(password) {
+            const vaultEnc = localStorage.getItem(VAULT_DATA_KEY);
+            if (vaultEnc) {
+                const decData = await decryptData(vaultEnc, password);
+                const payload = normalizeVaultPayload(JSON.parse(decData));
+                crms = payload.crms;
+                domains = payload.domains;
+                privateItems = payload.privateItems;
+                return;
+            }
+
+            loadLegacyPublicData();
+            const privateEnc = localStorage.getItem(PRIVATE_DATA_KEY);
+            if (privateEnc) {
+                const decPrivate = await decryptData(privateEnc, password);
+                privateItems = JSON.parse(decPrivate);
+            } else {
+                privateItems = [];
+            }
+            await saveVault(password);
+            clearLegacyPublicData();
+        }
+
+        function load() {
+            if (!hasMasterPassword()) {
+                loadLegacyPublicData();
+            }
 
             buildColorMap();
             render();
@@ -993,20 +1042,26 @@
             [...new Set(domains.map(c => c.sector))].sort().forEach(s => getSectorColor(s));
         }
 
-        function save() {
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(crms)); } catch (e) { }
+        async function saveVault(password = sessionPassword) {
+            if (!password) return;
+            const payload = JSON.stringify({ crms, domains, privateItems });
+            const ciphertext = await encryptData(payload, password);
+            localStorage.setItem(VAULT_DATA_KEY, ciphertext);
+            clearLegacyPublicData();
         }
 
-        function saveDomains() {
-            try { localStorage.setItem(DOMAINS_KEY, JSON.stringify(domains)); } catch (e) { }
+        async function save() {
+            try { await saveVault(); } catch (e) { alert('Error al guardar datos cifrados: ' + e.message); }
+        }
+
+        async function saveDomains() {
+            try { await saveVault(); } catch (e) { alert('Error al guardar datos cifrados: ' + e.message); }
         }
 
         async function savePrivate() {
             if (!sessionPassword) return;
             try {
-                const plaintext = JSON.stringify(privateItems);
-                const ciphertext = await encryptData(plaintext, sessionPassword);
-                localStorage.setItem(PRIVATE_DATA_KEY, ciphertext);
+                await saveVault();
             } catch (e) {
                 alert('Error al guardar datos privados: ' + e.message);
             }
@@ -1033,7 +1088,7 @@
             const btnLock = document.getElementById('btnLock');
             const btnNuevo = document.getElementById('btnNuevo');
             
-            if (currentTab === 'private' && unlocked) {
+            if (unlocked) {
                 btnLock.style.display = 'inline-flex';
             } else {
                 btnLock.style.display = 'none';
@@ -1059,7 +1114,7 @@
         }
 
         function handleNew() {
-            if (currentTab === 'private' && !unlocked) return;
+            if (!unlocked) return;
             openModal();
         }
 
@@ -1234,7 +1289,7 @@
                     getSectorColor(sector);
                     toast('CRM guardado');
                 }
-                save();
+                await save();
             } else if (currentTab === 'domains') {
                 if (editingId) {
                     const idx = domains.findIndex(x => x.id === editingId);
@@ -1248,7 +1303,7 @@
                     getSectorColor(sector);
                     toast('Dominio guardado');
                 }
-                saveDomains();
+                await saveDomains();
             } else if (currentTab === 'private') {
                 entry.sector = 'Privadas';
                 if (editingId) {
@@ -1275,14 +1330,14 @@
                 if (!c) return;
                 if (!confirm(`¿Eliminar "${c.marca}" (${c.sector})?`)) return;
                 crms = crms.filter(x => x.id !== id);
-                save();
+                await save();
                 toast('CRM eliminado');
             } else if (currentTab === 'domains') {
                 const c = domains.find(x => x.id === id);
                 if (!c) return;
                 if (!confirm(`¿Eliminar "${c.marca}" (${c.sector})?`)) return;
                 domains = domains.filter(x => x.id !== id);
-                saveDomains();
+                await saveDomains();
                 toast('Dominio eliminado');
             } else if (currentTab === 'private') {
                 const c = privateItems.find(x => x.id === id);
@@ -1482,7 +1537,7 @@
 
         function renderLockScreen() {
             const list = document.getElementById('list');
-            const hasPasswordSet = !!localStorage.getItem(PRIVATE_VERIFY_KEY);
+            const hasPasswordSet = hasMasterPassword();
             
             document.getElementById('statusBar').innerHTML = '';
 
@@ -1493,7 +1548,7 @@
                             <i class="ti ti-key"></i>
                         </div>
                         <h3 class="lock-title">Configurar Contraseña Maestra</h3>
-                        <p class="lock-desc">Crea una contraseña para encriptar localmente tus accesos privados. Tus datos nunca se enviarán a ningún servidor.</p>
+                        <p class="lock-desc">Crea una contraseña para cifrar localmente todos tus accesos. Tus datos nunca se enviarán a ningún servidor.</p>
                         <form class="lock-form" onsubmit="setupMasterPassword(event)">
                             <div class="form-group">
                                 <input type="password" id="setupPass" placeholder="Nueva contraseña maestra" required style="width: 100%; text-align: center;" />
@@ -1513,8 +1568,8 @@
                         <div class="lock-icon-wrap">
                             <i class="ti ti-lock"></i>
                         </div>
-                        <h3 class="lock-title">Sección Protegida</h3>
-                        <p class="lock-desc">Introduce tu contraseña maestra para desencriptar y ver tus registros privados.</p>
+                        <h3 class="lock-title">Caja fuerte bloqueada</h3>
+                        <p class="lock-desc">Introduce tu contraseña maestra para descifrar y ver tus accesos guardados.</p>
                         <form class="lock-form" onsubmit="unlockPrivateSection(event)">
                             <div class="form-group">
                                 <input type="password" id="masterPass" placeholder="Contraseña maestra" required style="width: 100%; text-align: center;" autofocus />
@@ -1602,16 +1657,14 @@
                 const verEnc = await encryptData("VERIFIED", p1);
                 localStorage.setItem(PRIVATE_VERIFY_KEY, verEnc);
                 
-                const initialPayload = await encryptData("[]", p1);
-                localStorage.setItem(PRIVATE_DATA_KEY, initialPayload);
-                
                 sessionPassword = p1;
                 unlocked = true;
                 privateItems = [];
+                await saveVault(p1);
                 
                 toast('Contraseña maestra configurada');
                 resetInactivityTimeout();
-                switchTab('private');
+                render();
             } catch (err) {
                 alert('Error al configurar contraseña: ' + err.message);
             }
@@ -1630,18 +1683,12 @@
                 if (decToken === "VERIFIED") {
                     sessionPassword = pass;
                     unlocked = true;
-                    
-                    const dataEnc = localStorage.getItem(PRIVATE_DATA_KEY);
-                    if (dataEnc) {
-                        const decData = await decryptData(dataEnc, pass);
-                        privateItems = JSON.parse(decData);
-                    } else {
-                        privateItems = [];
-                    }
-                    
-                    toast('Sección privada desbloqueada');
+                    await loadVault(pass);
+                    buildColorMap();
+
+                    toast('Caja fuerte desbloqueada');
                     resetInactivityTimeout();
-                    switchTab('private');
+                    render();
                 } else {
                     alert('Contraseña incorrecta.');
                 }
@@ -1653,15 +1700,14 @@
         function lockPrivate() {
             sessionPassword = '';
             unlocked = false;
+            crms = [];
+            domains = [];
             privateItems = [];
             if (lockTimer) clearTimeout(lockTimer);
-            if (currentTab === 'private') {
-                render();
-            }
+            visiblePass = {};
+            render();
             document.getElementById('btnLock').style.display = 'none';
-            if (currentTab === 'private') {
-                document.getElementById('btnNuevo').style.display = 'none';
-            }
+            document.getElementById('btnNuevo').style.display = 'none';
         }
 
         function render() {
@@ -1670,19 +1716,28 @@
             const fsEl = document.getElementById('filterSector');
             const btnLock = document.getElementById('btnLock');
             const btnNuevo = document.getElementById('btnNuevo');
+            const btnExport = document.getElementById('btnExport');
+            const toolbar = document.querySelector('.toolbar');
+
+            if (!unlocked) {
+                fsEl.style.display = 'none';
+                btnLock.style.display = 'none';
+                btnNuevo.style.display = 'none';
+                btnExport.style.display = 'none';
+                toolbar.style.display = 'none';
+                renderLockScreen();
+                return;
+            }
+
+            toolbar.style.display = '';
+            btnExport.style.display = '';
+            btnLock.style.display = 'inline-flex';
 
             if (currentTab === 'private') {
                 fsEl.style.display = 'none';
-                if (unlocked) {
-                    btnLock.style.display = 'inline-flex';
-                    btnNuevo.style.display = '';
-                } else {
-                    btnLock.style.display = 'none';
-                    btnNuevo.style.display = 'none';
-                }
+                btnNuevo.style.display = '';
             } else {
                 fsEl.style.display = '';
-                btnLock.style.display = 'none';
                 btnNuevo.style.display = '';
             }
 
@@ -1860,6 +1915,11 @@
         }
 
         async function exportToPDF() {
+            if (!unlocked || !sessionPassword) {
+                toast("Desbloquea la caja fuerte antes de exportar.");
+                return;
+            }
+
             if (crms.length === 0 && domains.length === 0 && privateItems.length === 0) {
                 toast("No hay credenciales registradas para exportar.");
                 return;
