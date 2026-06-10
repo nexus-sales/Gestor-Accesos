@@ -1,0 +1,1937 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestor de Accesos</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #ffffff;
+            --bg-secondary: #f6f6f4;
+            --bg-tertiary: #f0efec;
+            --text: #1a1a18;
+            --text-secondary: #5f5e5a;
+            --text-tertiary: #888780;
+            --border: rgba(0, 0, 0, 0.12);
+            --border-hover: rgba(0, 0, 0, 0.22);
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+            --info-bg: #e6f1fb;
+            --info-text: #0c447c;
+            --danger-bg: #fcebeb;
+            --danger-text: #a32d2d;
+            --danger-border: rgba(163, 45, 45, 0.3);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1c1c1a;
+                --bg-secondary: #252523;
+                --bg-tertiary: #2c2c2a;
+                --text: #f0efec;
+                --text-secondary: #b4b2a9;
+                --text-tertiary: #888780;
+                --border: rgba(255, 255, 255, 0.1);
+                --border-hover: rgba(255, 255, 255, 0.2);
+                --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+                --info-bg: #0c2d4a;
+                --info-text: #85b7eb;
+                --danger-bg: #3a1a1a;
+                --danger-text: #f09595;
+                --danger-border: rgba(240, 149, 149, 0.3);
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-tertiary);
+            color: var(--text);
+            min-height: 100vh;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg);
+            border-bottom: 0.5px solid var(--border);
+            padding: 0 2rem;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text);
+            margin-right: auto;
+        }
+
+        .header-logo i {
+            font-size: 20px;
+            color: var(--text-secondary);
+        }
+
+        /* Main */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .search-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-wrap i {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-tertiary);
+            font-size: 16px;
+            pointer-events: none;
+        }
+
+        .toolbar input[type=text],
+        .toolbar select {
+            height: 38px;
+            border-radius: var(--radius-md);
+            border: 0.5px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.15s;
+        }
+
+        .search-wrap input {
+            width: 100%;
+            padding: 0 12px 0 34px;
+        }
+
+        .toolbar select {
+            padding: 0 32px 0 12px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+        }
+
+        .toolbar input:focus,
+        .toolbar select:focus {
+            outline: none;
+            border-color: var(--border-hover);
+        }
+
+        .btn {
+            height: 38px;
+            padding: 0 16px;
+            border-radius: var(--radius-md);
+            border: 0.5px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            transition: background 0.12s, border-color 0.12s;
+        }
+
+        .btn:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-hover);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn.primary {
+            background: var(--text);
+            color: var(--bg-tertiary);
+            border-color: var(--text);
+        }
+
+        .btn.primary:hover {
+            opacity: 0.85;
+        }
+
+        /* Status */
+        .status-bar {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #1d9e75;
+            display: inline-block;
+        }
+
+        /* Sector groups */
+        .sector-group {
+            margin-bottom: 2rem;
+        }
+
+        .sector-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 0.875rem;
+            padding-bottom: 0.625rem;
+            border-bottom: 0.5px solid var(--border);
+        }
+
+        .sector-label {
+            font-size: 12px;
+            font-weight: 500;
+            padding: 3px 11px;
+            border-radius: var(--radius-md);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .sector-count {
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        /* Cards */
+        .crm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+            gap: 12px;
+        }
+
+        .crm-card {
+            background: var(--bg);
+            border: 0.5px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.25rem;
+            box-shadow: var(--shadow);
+            transition: border-color 0.12s, box-shadow 0.12s;
+        }
+
+        .crm-card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .crm-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .crm-brand {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .crm-actions {
+            display: flex;
+            gap: 2px;
+        }
+
+        .icon-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-md);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-tertiary);
+            font-size: 15px;
+            transition: all 0.12s;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text);
+        }
+
+        .icon-btn.danger:hover {
+            background: var(--danger-bg);
+            color: var(--danger-text);
+        }
+
+        .crm-url {
+            font-size: 13px;
+            color: var(--info-text);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .crm-url:hover {
+            text-decoration: underline;
+        }
+
+        .crm-url i {
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .crm-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 12px;
+            margin-bottom: 6px;
+        }
+
+        .crm-field label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            display: block;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .crm-field-val {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .toggle-pass {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-tertiary);
+            padding: 0;
+            line-height: 1;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+        }
+
+        .toggle-pass:hover {
+            color: var(--text);
+        }
+
+        .crm-obs {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 0.5px solid var(--border);
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        /* Empty */
+        .empty {
+            padding: 4rem 0;
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 14px;
+        }
+
+        .empty i {
+            font-size: 40px;
+            display: block;
+            margin-bottom: 12px;
+            opacity: 0.4;
+        }
+
+        .empty p {
+            margin-bottom: 1rem;
+        }
+
+        /* Modal */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal {
+            background: var(--bg);
+            border-radius: var(--radius-lg);
+            border: 0.5px solid var(--border);
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .modal-header h2 {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .form-group input[type=text],
+        .form-group input[type=url],
+        .form-group input[type=password],
+        .form-group textarea {
+            width: 100%;
+            padding: 0 12px;
+            height: 38px;
+            border-radius: var(--radius-md);
+            border: 0.5px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.15s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--border-hover);
+        }
+
+        .form-group textarea {
+            height: 80px;
+            padding: 10px 12px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .pass-wrap {
+            position: relative;
+        }
+
+        .pass-wrap input {
+            padding-right: 36px;
+        }
+
+        .pass-eye {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-tertiary);
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .pass-eye:hover {
+            color: var(--text);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 1.5rem;
+        }
+
+        .required {
+            color: var(--danger-text);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            background: var(--text);
+            color: var(--bg);
+            padding: 10px 16px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transform: translateY(8px);
+            opacity: 0;
+            transition: all 0.2s ease;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Sector color palette */
+        .sc-blue {
+            background: #e6f1fb;
+            color: #0c447c;
+        }
+
+        .sc-teal {
+            background: #e1f5ee;
+            color: #085041;
+        }
+
+        .sc-amber {
+            background: #faeeda;
+            color: #633806;
+        }
+
+        .sc-coral {
+            background: #faece7;
+            color: #712b13;
+        }
+
+        .sc-purple {
+            background: #eeedfe;
+            color: #3c3489;
+        }
+
+        .sc-pink {
+            background: #fbeaf0;
+            color: #72243e;
+        }
+
+        .sc-green {
+            background: #eaf3de;
+            color: #27500a;
+        }
+
+        .sc-red {
+            background: #fcebeb;
+            color: #791f1f;
+        }
+
+        .sc-gray {
+            background: #f1efe8;
+            color: #444441;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .sc-blue {
+                background: #0c2d4a;
+                color: #85b7eb;
+            }
+
+            .sc-teal {
+                background: #04342c;
+                color: #5dcaa5;
+            }
+
+            .sc-amber {
+                background: #412402;
+                color: #fac775;
+            }
+
+            .sc-coral {
+                background: #4a1b0c;
+                color: #f0997b;
+            }
+
+            .sc-purple {
+                background: #26215c;
+                color: #afa9ec;
+            }
+
+            .sc-pink {
+                background: #4b1528;
+                color: #ed93b1;
+            }
+
+            .sc-green {
+                background: #173404;
+                color: #97c459;
+            }
+
+            .sc-red {
+                background: #501313;
+                color: #f09595;
+            }
+
+            .sc-gray {
+                background: #2c2c2a;
+                color: #b4b2a9;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header {
+                padding: 0 1rem;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Estilos de Pestañas */
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 4px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            margin-bottom: 1.5rem;
+            width: fit-content;
+            border: 0.5px solid var(--border);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            color: var(--text);
+        }
+
+        .tab-btn.active {
+            color: var(--text);
+            background: var(--bg);
+            box-shadow: var(--shadow);
+        }
+
+        /* Estilos de Bloqueo Privado */
+        .lock-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            text-align: center;
+            background: var(--bg);
+            border: 0.5px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            max-width: 420px;
+            margin: 2rem auto;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .lock-icon-wrap {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            color: var(--text-secondary);
+            font-size: 28px;
+        }
+
+        .lock-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .lock-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .lock-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+
+<body>
+
+    <header class="header">
+        <div class="header-logo">
+            <i class="ti ti-key" aria-hidden="true"></i>
+            Gestor de Accesos
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn" id="btnLock" onclick="lockPrivate()" style="display: none;">
+                <i class="ti ti-lock" aria-hidden="true"></i> Bloquear
+            </button>
+            <button class="btn" id="btnExport" onclick="exportToPDF()">
+                <i class="ti ti-download" aria-hidden="true"></i> Exportar PDF
+            </button>
+            <button class="btn primary" id="btnNuevo" onclick="handleNew()">
+                <i class="ti ti-plus" aria-hidden="true"></i> Nuevo CRM
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Pestañas de Navegación -->
+        <nav class="nav-tabs" role="tablist">
+            <button class="tab-btn active" id="tab-crms" onclick="switchTab('crms')" role="tab" aria-selected="true" aria-controls="list">
+                <i class="ti ti-database" aria-hidden="true"></i> CRMs
+            </button>
+            <button class="tab-btn" id="tab-domains" onclick="switchTab('domains')" role="tab" aria-selected="false" aria-controls="list">
+                <i class="ti ti-world" aria-hidden="true"></i> Dominios y Emails
+            </button>
+            <button class="tab-btn" id="tab-private" onclick="switchTab('private')" role="tab" aria-selected="false" aria-controls="list">
+                <i class="ti ti-lock" aria-hidden="true"></i> Contraseñas Privadas
+            </button>
+        </nav>
+
+        <div class="toolbar">
+            <div class="search-wrap">
+                <i class="ti ti-search" aria-hidden="true"></i>
+                <input type="text" id="search" placeholder="Buscar..." oninput="render()" />
+            </div>
+            <select id="filterSector" onchange="render()">
+                <option value="">Todos los sectores</option>
+            </select>
+        </div>
+        <div id="statusBar" class="status-bar"></div>
+        <div id="list"></div>
+    </main>
+
+    <!-- Modal -->
+    <div id="modalOverlay" class="overlay" style="display:none" onclick="overlayClick(event)">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-header">
+                <h2 id="modalTitle">Nuevo CRM</h2>
+                <button class="icon-btn" onclick="closeModal()" aria-label="Cerrar">
+                    <i class="ti ti-x" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="form-row" id="rowSectorMarca">
+                <div class="form-group" id="grpSector">
+                    <label for="fSector" id="lblSector">Sector <span class="required">*</span></label>
+                    <input type="text" id="fSector" list="sectorList" placeholder="ej. Automoción" autocomplete="off" />
+                    <datalist id="sectorList"></datalist>
+                </div>
+                <div class="form-group" id="grpMarca">
+                    <label for="fMarca" id="lblMarca">Marca <span class="required">*</span></label>
+                    <input type="text" id="fMarca" placeholder="ej. Toyota" />
+                </div>
+            </div>
+            <div class="form-group" id="grpUrl">
+                <label for="fUrl" id="lblUrl">URL del CRM <span class="required">*</span></label>
+                <input type="url" id="fUrl" placeholder="https://crm.ejemplo.com" />
+            </div>
+            <div class="form-row">
+                <div class="form-group" id="grpUser">
+                    <label for="fUser" id="lblUser">Usuario</label>
+                    <input type="text" id="fUser" placeholder="usuario@dominio.com" autocomplete="off" />
+                </div>
+                <div class="form-group" id="grpPass">
+                    <label for="fPass" id="lblPass">Contraseña</label>
+                    <div class="pass-wrap">
+                        <input type="password" id="fPass" placeholder="••••••••" autocomplete="new-password" />
+                        <button class="pass-eye" type="button" onclick="toggleModalPass()"
+                            aria-label="Mostrar/ocultar contraseña" id="passEye">
+                            <i class="ti ti-eye" id="passEyeIcon"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="fObs">Observaciones</label>
+                <textarea id="fObs" placeholder="Notas de acceso, módulos disponibles, permisos…"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal()">Cancelar</button>
+                <button class="btn primary" onclick="saveCRM()">
+                    <i class="ti ti-device-floppy" aria-hidden="true"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const STORAGE_KEY = 'crm_manager_v1';
+        const DOMAINS_KEY = 'crm_manager_v1_domains';
+        const PRIVATE_VERIFY_KEY = 'crm_manager_v1_private_verify';
+        const PRIVATE_DATA_KEY = 'crm_manager_v1_private_data';
+
+        let crms = [];
+        let domains = [];
+        let privateItems = [];
+        
+        let currentTab = 'crms';
+        let unlocked = false;
+        let sessionPassword = '';
+        let editingId = null;
+        let visiblePass = {};
+        let lockTimer = null;
+
+        const SECTOR_COLORS = ['sc-blue', 'sc-teal', 'sc-amber', 'sc-coral', 'sc-purple', 'sc-pink', 'sc-green', 'sc-red', 'sc-gray'];
+        const sectorColorMap = {};
+        let colorIdx = 0;
+
+        // --- Criptografía con Web Crypto API (AES-GCM + PBKDF2) ---
+
+        function bufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function base64ToBuffer(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        async function deriveKey(password, salt) {
+            const enc = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+                "raw",
+                enc.encode(password),
+                "PBKDF2",
+                false,
+                ["deriveBits", "deriveKey"]
+            );
+            return crypto.subtle.deriveKey(
+                {
+                    name: "PBKDF2",
+                    salt: salt,
+                    iterations: 100000,
+                    hash: "SHA-256"
+                },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["encrypt", "decrypt"]
+            );
+        }
+
+        async function encryptData(plaintext, password) {
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const key = await deriveKey(password, salt);
+            
+            const enc = new TextEncoder();
+            const encrypted = await crypto.subtle.encrypt(
+                {
+                    name: "AES-GCM",
+                    iv: iv
+                },
+                key,
+                enc.encode(plaintext)
+            );
+
+            const combined = new Uint8Array(salt.byteLength + iv.byteLength + encrypted.byteLength);
+            combined.set(new Uint8Array(salt), 0);
+            combined.set(new Uint8Array(iv), salt.byteLength);
+            combined.set(new Uint8Array(encrypted), salt.byteLength + iv.byteLength);
+
+            return bufferToBase64(combined.buffer);
+        }
+
+        async function decryptData(ciphertextBase64, password) {
+            try {
+                const combined = new Uint8Array(base64ToBuffer(ciphertextBase64));
+                const salt = combined.slice(0, 16);
+                const iv = combined.slice(16, 28);
+                const ciphertext = combined.slice(28);
+
+                const key = await deriveKey(password, salt);
+                const decrypted = await crypto.subtle.decrypt(
+                    {
+                        name: "AES-GCM",
+                        iv: iv
+                    },
+                    key,
+                    ciphertext
+                );
+
+                const dec = new TextDecoder();
+                return dec.decode(decrypted);
+            } catch (e) {
+                throw new Error("Contraseña incorrecta o datos corruptos");
+            }
+        }
+
+        // --- Gestión de Inactividad ---
+
+        function resetInactivityTimeout() {
+            if (!unlocked) return;
+            if (lockTimer) clearTimeout(lockTimer);
+            lockTimer = setTimeout(() => {
+                lockPrivate();
+                toast('Sección privada bloqueada por inactividad');
+            }, 600000); // 10 minutos
+        }
+
+        ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, resetInactivityTimeout, true);
+        });
+
+        // --- Operaciones Generales ---
+
+        function getSectorColor(sector) {
+            if (!sectorColorMap[sector]) {
+                sectorColorMap[sector] = SECTOR_COLORS[colorIdx % SECTOR_COLORS.length];
+                colorIdx++;
+            }
+            return sectorColorMap[sector];
+        }
+
+        function load() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) crms = JSON.parse(raw);
+            } catch (e) { crms = []; }
+
+            try {
+                const rawDom = localStorage.getItem(DOMAINS_KEY);
+                if (rawDom) domains = JSON.parse(rawDom);
+            } catch (e) { domains = []; }
+
+            buildColorMap();
+            render();
+        }
+
+        function buildColorMap() {
+            [...new Set(crms.map(c => c.sector))].sort().forEach(s => getSectorColor(s));
+            [...new Set(domains.map(c => c.sector))].sort().forEach(s => getSectorColor(s));
+        }
+
+        function save() {
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(crms)); } catch (e) { }
+        }
+
+        function saveDomains() {
+            try { localStorage.setItem(DOMAINS_KEY, JSON.stringify(domains)); } catch (e) { }
+        }
+
+        async function savePrivate() {
+            if (!sessionPassword) return;
+            try {
+                const plaintext = JSON.stringify(privateItems);
+                const ciphertext = await encryptData(plaintext, sessionPassword);
+                localStorage.setItem(PRIVATE_DATA_KEY, ciphertext);
+            } catch (e) {
+                alert('Error al guardar datos privados: ' + e.message);
+            }
+        }
+
+        function toast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 2200);
+        }
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.setAttribute('aria-selected', 'false');
+            });
+            const activeBtn = document.getElementById('tab-' + tabId);
+            activeBtn.classList.add('active');
+            activeBtn.setAttribute('aria-selected', 'true');
+            
+            const btnLock = document.getElementById('btnLock');
+            const btnNuevo = document.getElementById('btnNuevo');
+            
+            if (currentTab === 'private' && unlocked) {
+                btnLock.style.display = 'inline-flex';
+            } else {
+                btnLock.style.display = 'none';
+            }
+            
+            if (currentTab === 'crms') {
+                btnNuevo.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i> Nuevo CRM';
+                btnNuevo.style.display = '';
+            } else if (currentTab === 'domains') {
+                btnNuevo.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i> Nuevo Dominio/Email';
+                btnNuevo.style.display = '';
+            } else if (currentTab === 'private') {
+                if (unlocked) {
+                    btnNuevo.innerHTML = '<i class="ti ti-plus" aria-hidden="true"></i> Nueva Contraseña';
+                    btnNuevo.style.display = '';
+                } else {
+                    btnNuevo.style.display = 'none';
+                }
+            }
+            
+            document.getElementById('search').value = '';
+            render();
+        }
+
+        function handleNew() {
+            if (currentTab === 'private' && !unlocked) return;
+            openModal();
+        }
+
+        function updateModalFieldsForTab() {
+            const lblSector = document.getElementById('lblSector');
+            const lblMarca = document.getElementById('lblMarca');
+            const lblUrl = document.getElementById('lblUrl');
+            const lblUser = document.getElementById('lblUser');
+            
+            const grpSector = document.getElementById('grpSector');
+            const grpUrl = document.getElementById('grpUrl');
+            const rowSectorMarca = document.getElementById('rowSectorMarca');
+            
+            const fSector = document.getElementById('fSector');
+            const fMarca = document.getElementById('fMarca');
+            const fUrl = document.getElementById('fUrl');
+            const fUser = document.getElementById('fUser');
+            
+            if (currentTab === 'crms') {
+                grpSector.style.display = '';
+                grpUrl.style.display = '';
+                rowSectorMarca.style.gridTemplateColumns = '1fr 1fr';
+                
+                lblSector.innerHTML = 'Sector <span class="required">*</span>';
+                fSector.placeholder = 'ej. Automoción';
+                lblMarca.innerHTML = 'Marca <span class="required">*</span>';
+                fMarca.placeholder = 'ej. Toyota';
+                lblUrl.innerHTML = 'URL del CRM <span class="required">*</span>';
+                fUrl.placeholder = 'https://crm.ejemplo.com';
+                lblUser.textContent = 'Usuario';
+                fUser.placeholder = 'usuario@dominio.com';
+            } else if (currentTab === 'domains') {
+                grpSector.style.display = '';
+                grpUrl.style.display = '';
+                rowSectorMarca.style.gridTemplateColumns = '1fr 1fr';
+                
+                lblSector.innerHTML = 'Proveedor / Registrador <span class="required">*</span>';
+                fSector.placeholder = 'ej. GoDaddy, Namecheap';
+                lblMarca.innerHTML = 'Dominio <span class="required">*</span>';
+                fMarca.placeholder = 'ej. mi-web.com';
+                lblUrl.innerHTML = 'URL de Acceso <span class="required">*</span>';
+                fUrl.placeholder = 'https://godaddy.com';
+                lblUser.textContent = 'Email / Usuario';
+                fUser.placeholder = 'ej. admin@mi-web.com';
+            } else if (currentTab === 'private') {
+                grpSector.style.display = 'none';
+                grpUrl.style.display = 'none';
+                rowSectorMarca.style.gridTemplateColumns = '1fr';
+                
+                lblMarca.innerHTML = 'Servicio / Título <span class="required">*</span>';
+                fMarca.placeholder = 'ej. Cuenta Bancaria, Caja Fuerte';
+                lblUser.textContent = 'Usuario / Identificador';
+                fUser.placeholder = 'ej. usuario123';
+            }
+        }
+
+        function openModal(id) {
+            editingId = id || null;
+            
+            let titleType = 'CRM';
+            if (currentTab === 'domains') titleType = 'Dominio';
+            else if (currentTab === 'private') titleType = 'Registro Privado';
+            
+            document.getElementById('modalTitle').textContent = id ? `Editar ${titleType}` : `Nuevo ${titleType}`;
+            
+            updateModalFieldsForTab();
+
+            if (id) {
+                let c;
+                if (currentTab === 'crms') c = crms.find(x => x.id === id);
+                else if (currentTab === 'domains') c = domains.find(x => x.id === id);
+                else if (currentTab === 'private') c = privateItems.find(x => x.id === id);
+                
+                if (c) {
+                    if (currentTab !== 'private') {
+                        document.getElementById('fSector').value = c.sector || '';
+                        document.getElementById('fUrl').value = c.url || '';
+                    }
+                    document.getElementById('fMarca').value = c.marca || '';
+                    document.getElementById('fUser').value = c.user || '';
+                    document.getElementById('fPass').value = c.pass || '';
+                    document.getElementById('fObs').value = c.obs || '';
+                }
+            } else {
+                ['fSector', 'fMarca', 'fUrl', 'fUser', 'fPass', 'fObs'].forEach(f => {
+                    const el = document.getElementById(f);
+                    if (el) el.value = '';
+                });
+            }
+            
+            const pi = document.getElementById('fPass');
+            pi.type = 'password';
+            document.getElementById('passEyeIcon').className = 'ti ti-eye';
+            
+            if (currentTab !== 'private') {
+                updateDatalist();
+            }
+            document.getElementById('modalOverlay').style.display = 'flex';
+            setTimeout(() => {
+                const focusEl = (currentTab === 'private') ? document.getElementById('fMarca') : document.getElementById('fSector');
+                if (focusEl) focusEl.focus();
+            }, 50);
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').style.display = 'none';
+            editingId = null;
+        }
+
+        function overlayClick(e) {
+            if (e.target === document.getElementById('modalOverlay')) closeModal();
+        }
+
+        function toggleModalPass() {
+            const pi = document.getElementById('fPass');
+            const icon = document.getElementById('passEyeIcon');
+            if (pi.type === 'password') {
+                pi.type = 'text';
+                icon.className = 'ti ti-eye-off';
+            } else {
+                pi.type = 'password';
+                icon.className = 'ti ti-eye';
+            }
+        }
+
+        function updateDatalist() {
+            const dl = document.getElementById('sectorList');
+            let itemsSource = (currentTab === 'domains') ? domains : crms;
+            const sectors = [...new Set(itemsSource.map(c => c.sector))].sort();
+            dl.innerHTML = sectors.map(s => `<option value="${esc(s)}">`).join('');
+        }
+
+        async function saveCRM() {
+            const marca = document.getElementById('fMarca').value.trim();
+            if (!marca) {
+                alert('El campo es obligatorio.');
+                return;
+            }
+
+            let sector = '';
+            let url = '';
+
+            if (currentTab !== 'private') {
+                sector = document.getElementById('fSector').value.trim();
+                url = document.getElementById('fUrl').value.trim();
+                if (!sector || !url) {
+                    alert('Los campos requeridos son obligatorios.');
+                    return;
+                }
+            }
+
+            const user = document.getElementById('fUser').value.trim();
+            const pass = document.getElementById('fPass').value.trim();
+            const obs = document.getElementById('fObs').value.trim();
+
+            const entry = {
+                id: editingId || crypto.randomUUID(),
+                sector, marca, url, user, pass, obs,
+                created: Date.now()
+            };
+
+            if (currentTab === 'crms') {
+                if (editingId) {
+                    const idx = crms.findIndex(x => x.id === editingId);
+                    if (idx !== -1) {
+                        entry.created = crms[idx].created || Date.now();
+                        crms[idx] = entry;
+                    }
+                    toast('CRM actualizado');
+                } else {
+                    crms.push(entry);
+                    getSectorColor(sector);
+                    toast('CRM guardado');
+                }
+                save();
+            } else if (currentTab === 'domains') {
+                if (editingId) {
+                    const idx = domains.findIndex(x => x.id === editingId);
+                    if (idx !== -1) {
+                        entry.created = domains[idx].created || Date.now();
+                        domains[idx] = entry;
+                    }
+                    toast('Dominio actualizado');
+                } else {
+                    domains.push(entry);
+                    getSectorColor(sector);
+                    toast('Dominio guardado');
+                }
+                saveDomains();
+            } else if (currentTab === 'private') {
+                entry.sector = 'Privadas';
+                if (editingId) {
+                    const idx = privateItems.findIndex(x => x.id === editingId);
+                    if (idx !== -1) {
+                        entry.created = privateItems[idx].created || Date.now();
+                        privateItems[idx] = entry;
+                    }
+                    toast('Registro privado actualizado');
+                } else {
+                    privateItems.push(entry);
+                    toast('Registro privado guardado');
+                }
+                await savePrivate();
+            }
+
+            closeModal();
+            render();
+        }
+
+        async function deleteCRM(id) {
+            if (currentTab === 'crms') {
+                const c = crms.find(x => x.id === id);
+                if (!c) return;
+                if (!confirm(`¿Eliminar "${c.marca}" (${c.sector})?`)) return;
+                crms = crms.filter(x => x.id !== id);
+                save();
+                toast('CRM eliminado');
+            } else if (currentTab === 'domains') {
+                const c = domains.find(x => x.id === id);
+                if (!c) return;
+                if (!confirm(`¿Eliminar "${c.marca}" (${c.sector})?`)) return;
+                domains = domains.filter(x => x.id !== id);
+                saveDomains();
+                toast('Dominio eliminado');
+            } else if (currentTab === 'private') {
+                const c = privateItems.find(x => x.id === id);
+                if (!c) return;
+                if (!confirm(`¿Eliminar "${c.marca}"?`)) return;
+                privateItems = privateItems.filter(x => x.id !== id);
+                await savePrivate();
+                toast('Registro privado eliminado');
+            }
+            render();
+        }
+
+        function togglePass(id) {
+            visiblePass[id] = !visiblePass[id];
+            const el = document.getElementById('pass-' + id);
+            const btn = document.getElementById('passBtn-' + id);
+            if (!el) return;
+            
+            let c;
+            if (currentTab === 'crms') c = crms.find(x => x.id === id);
+            else if (currentTab === 'domains') c = domains.find(x => x.id === id);
+            else if (currentTab === 'private') c = privateItems.find(x => x.id === id);
+            
+            if (!c) return;
+
+            if (visiblePass[id]) {
+                el.textContent = c.pass;
+                btn.innerHTML = '<i class="ti ti-eye-off"></i>';
+            } else {
+                el.textContent = '•'.repeat(Math.min(c.pass.length, 10));
+                btn.innerHTML = '<i class="ti ti-eye"></i>';
+            }
+            resetInactivityTimeout();
+        }
+
+        // --- Renderizados Específicos ---
+
+        function renderCRMs(q, fs) {
+            const list = document.getElementById('list');
+            let filtered = crms.filter(c => {
+                const matchQ = !q || [c.sector, c.marca, c.url, c.user, c.obs].join(' ').toLowerCase().includes(q);
+                const matchS = !fs || c.sector === fs;
+                return matchQ && matchS;
+            });
+
+            const allSectors = [...new Set(crms.map(c => c.sector))].sort();
+            const sel = document.getElementById('filterSector');
+            const prev = sel.value;
+            sel.innerHTML = '<option value="">Todos los sectores</option>' +
+                allSectors.map(s => `<option value="${esc(s)}"${s === prev ? ' selected' : ''}>${esc(s)}</option>`).join('');
+
+            const grouped = {};
+            [...filtered].sort((a, b) => a.sector.localeCompare(b.sector, 'es') || a.marca.localeCompare(b.marca, 'es'))
+                .forEach(c => { (grouped[c.sector] = grouped[c.sector] || []).push(c); });
+            const sectors = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'es'));
+
+            document.getElementById('statusBar').innerHTML =
+                `<span class="status-dot"></span> ${crms.length} CRM${crms.length !== 1 ? 's' : ''} · ${allSectors.length} sector${allSectors.length !== 1 ? 'es' : ''}`;
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="empty">
+      <i class="ti ti-database-off"></i>
+      <p>${crms.length === 0 ? 'No hay CRMs registrados.' : 'Sin resultados para esta búsqueda.'}</p>
+      ${crms.length === 0 ? '<button class="btn primary" onclick="openModal()"><i class="ti ti-plus"></i> Añadir primer CRM</button>' : ''}
+    </div>`;
+                return;
+            }
+
+            list.innerHTML = sectors.map(sector => {
+                const items = grouped[sector];
+                const cls = getSectorColor(sector);
+                const cards = items.map(c => {
+                    const passHidden = c.pass ? '•'.repeat(Math.min(c.pass.length, 10)) : '—';
+                    return `<article class="crm-card">
+        <div class="crm-card-header">
+          <span class="crm-brand">${esc(c.marca)}</span>
+          <div class="crm-actions">
+            <button class="icon-btn" onclick="openModal('${c.id}')" title="Editar" aria-label="Editar ${esc(c.marca)}">
+              <i class="ti ti-edit" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn danger" onclick="deleteCRM('${c.id}')" title="Eliminar" aria-label="Eliminar ${esc(c.marca)}">
+              <i class="ti ti-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        <a class="crm-url" href="${escAttr(c.url)}" target="_blank" rel="noopener" title="${escAttr(c.url)}">
+          <i class="ti ti-external-link" aria-hidden="true"></i>${esc(c.url)}
+        </a>
+        <div class="crm-fields">
+          <div class="crm-field">
+            <label>Usuario</label>
+            <div class="crm-field-val">${esc(c.user || '—')}</div>
+          </div>
+          <div class="crm-field">
+            <label>Contraseña</label>
+            <div class="crm-field-val">
+              <span id="pass-${c.id}">${c.pass ? passHidden : '—'}</span>
+              ${c.pass ? `<button class="toggle-pass" id="passBtn-${c.id}" onclick="togglePass('${c.id}')" aria-label="Mostrar/ocultar contraseña">
+                <i class="ti ti-eye"></i>
+              </button>` : ''}
+            </div>
+          </div>
+        </div>
+        ${c.obs ? `<div class="crm-obs">${esc(c.obs)}</div>` : ''}
+      </article>`;
+                }).join('');
+
+                return `<section class="sector-group">
+      <div class="sector-header">
+        <span class="sector-label ${cls}">${esc(sector)}</span>
+        <span class="sector-count">${items.length} CRM${items.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="crm-grid">${cards}</div>
+    </section>`;
+            }).join('');
+        }
+
+        function renderDomains(q, fs) {
+            const list = document.getElementById('list');
+            let filtered = domains.filter(c => {
+                const matchQ = !q || [c.sector, c.marca, c.url, c.user, c.obs].join(' ').toLowerCase().includes(q);
+                const matchS = !fs || c.sector === fs;
+                return matchQ && matchS;
+            });
+
+            const allProviders = [...new Set(domains.map(c => c.sector))].sort();
+            const sel = document.getElementById('filterSector');
+            const prev = sel.value;
+            sel.innerHTML = '<option value="">Todos los proveedores</option>' +
+                allProviders.map(s => `<option value="${esc(s)}"${s === prev ? ' selected' : ''}>${esc(s)}</option>`).join('');
+
+            const grouped = {};
+            [...filtered].sort((a, b) => a.sector.localeCompare(b.sector, 'es') || a.marca.localeCompare(b.marca, 'es'))
+                .forEach(c => { (grouped[c.sector] = grouped[c.sector] || []).push(c); });
+            const providers = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'es'));
+
+            document.getElementById('statusBar').innerHTML =
+                `<span class="status-dot"></span> ${domains.length} Dominio${domains.length !== 1 ? 's' : ''} · ${allProviders.length} proveedor${allProviders.length !== 1 ? 'es' : ''}`;
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="empty">
+      <i class="ti ti-world-off"></i>
+      <p>${domains.length === 0 ? 'No hay dominios registrados.' : 'Sin resultados para esta búsqueda.'}</p>
+      ${domains.length === 0 ? '<button class="btn primary" onclick="openModal()"><i class="ti ti-plus"></i> Añadir primer Dominio/Email</button>' : ''}
+    </div>`;
+                return;
+            }
+
+            list.innerHTML = providers.map(provider => {
+                const items = grouped[provider];
+                const cls = getSectorColor(provider);
+                const cards = items.map(c => {
+                    const passHidden = c.pass ? '•'.repeat(Math.min(c.pass.length, 10)) : '—';
+                    return `<article class="crm-card">
+        <div class="crm-card-header">
+          <span class="crm-brand">${esc(c.marca)}</span>
+          <div class="crm-actions">
+            <button class="icon-btn" onclick="openModal('${c.id}')" title="Editar" aria-label="Editar ${esc(c.marca)}">
+              <i class="ti ti-edit" aria-hidden="true"></i>
+            </button>
+            <button class="icon-btn danger" onclick="deleteCRM('${c.id}')" title="Eliminar" aria-label="Eliminar ${esc(c.marca)}">
+              <i class="ti ti-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        <a class="crm-url" href="${escAttr(c.url)}" target="_blank" rel="noopener" title="${escAttr(c.url)}">
+          <i class="ti ti-external-link" aria-hidden="true"></i>${esc(c.url)}
+        </a>
+        <div class="crm-fields">
+          <div class="crm-field">
+            <label>Email / Usuario</label>
+            <div class="crm-field-val">${esc(c.user || '—')}</div>
+          </div>
+          <div class="crm-field">
+            <label>Contraseña</label>
+            <div class="crm-field-val">
+              <span id="pass-${c.id}">${c.pass ? passHidden : '—'}</span>
+              ${c.pass ? `<button class="toggle-pass" id="passBtn-${c.id}" onclick="togglePass('${c.id}')" aria-label="Mostrar/ocultar contraseña">
+                <i class="ti ti-eye"></i>
+              </button>` : ''}
+            </div>
+          </div>
+        </div>
+        ${c.obs ? `<div class="crm-obs">${esc(c.obs)}</div>` : ''}
+      </article>`;
+                }).join('');
+
+                return `<section class="sector-group">
+      <div class="sector-header">
+        <span class="sector-label ${cls}">${esc(provider)}</span>
+        <span class="sector-count">${items.length} Dominio${items.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="crm-grid">${cards}</div>
+    </section>`;
+            }).join('');
+        }
+
+        function renderLockScreen() {
+            const list = document.getElementById('list');
+            const hasPasswordSet = !!localStorage.getItem(PRIVATE_VERIFY_KEY);
+            
+            document.getElementById('statusBar').innerHTML = '';
+
+            if (!hasPasswordSet) {
+                list.innerHTML = `
+                    <div class="lock-container">
+                        <div class="lock-icon-wrap">
+                            <i class="ti ti-key"></i>
+                        </div>
+                        <h3 class="lock-title">Configurar Contraseña Maestra</h3>
+                        <p class="lock-desc">Crea una contraseña para encriptar localmente tus accesos privados. Tus datos nunca se enviarán a ningún servidor.</p>
+                        <form class="lock-form" onsubmit="setupMasterPassword(event)">
+                            <div class="form-group">
+                                <input type="password" id="setupPass" placeholder="Nueva contraseña maestra" required style="width: 100%; text-align: center;" />
+                            </div>
+                            <div class="form-group">
+                                <input type="password" id="setupPassConfirm" placeholder="Confirmar contraseña" required style="width: 100%; text-align: center;" />
+                            </div>
+                            <button type="submit" class="btn primary" style="width: 100%; justify-content: center; height: 42px;">
+                                <i class="ti ti-device-floppy"></i> Establecer Contraseña
+                            </button>
+                        </form>
+                    </div>
+                `;
+            } else {
+                list.innerHTML = `
+                    <div class="lock-container">
+                        <div class="lock-icon-wrap">
+                            <i class="ti ti-lock"></i>
+                        </div>
+                        <h3 class="lock-title">Sección Protegida</h3>
+                        <p class="lock-desc">Introduce tu contraseña maestra para desencriptar y ver tus registros privados.</p>
+                        <form class="lock-form" onsubmit="unlockPrivateSection(event)">
+                            <div class="form-group">
+                                <input type="password" id="masterPass" placeholder="Contraseña maestra" required style="width: 100%; text-align: center;" autofocus />
+                            </div>
+                            <button type="submit" class="btn primary" style="width: 100%; justify-content: center; height: 42px;">
+                                <i class="ti ti-lock-open"></i> Desbloquear
+                            </button>
+                        </form>
+                    </div>
+                `;
+                setTimeout(() => {
+                    const el = document.getElementById('masterPass');
+                    if (el) el.focus();
+                }, 50);
+            }
+        }
+
+        function renderPrivateItems(q) {
+            const list = document.getElementById('list');
+            let filtered = privateItems.filter(c => {
+                return !q || [c.marca, c.user, c.obs].join(' ').toLowerCase().includes(q);
+            });
+
+            document.getElementById('statusBar').innerHTML =
+                `<span class="status-dot" style="background: #a32d2d;"></span> ${privateItems.length} Registro${privateItems.length !== 1 ? 's' : ''} privado${privateItems.length !== 1 ? 's' : ''} · Protegido localmente`;
+
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="empty">
+      <i class="ti ti-shield-off"></i>
+      <p>${privateItems.length === 0 ? 'No hay registros privados guardados.' : 'Sin resultados para esta búsqueda.'}</p>
+      ${privateItems.length === 0 ? '<button class="btn primary" onclick="openModal()"><i class="ti ti-plus"></i> Añadir primer Registro Privado</button>' : ''}
+    </div>`;
+                return;
+            }
+
+            const cards = filtered.map(c => {
+                const passHidden = c.pass ? '•'.repeat(Math.min(c.pass.length, 10)) : '—';
+                return `<article class="crm-card" style="border-left: 3px solid #a32d2d;">
+    <div class="crm-card-header">
+      <span class="crm-brand">${esc(c.marca)}</span>
+      <div class="crm-actions">
+        <button class="icon-btn" onclick="openModal('${c.id}')" title="Editar" aria-label="Editar ${esc(c.marca)}">
+          <i class="ti ti-edit" aria-hidden="true"></i>
+        </button>
+        <button class="icon-btn danger" onclick="deleteCRM('${c.id}')" title="Eliminar" aria-label="Eliminar ${esc(c.marca)}">
+          <i class="ti ti-trash" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="crm-fields" style="margin-top: 10px;">
+      <div class="crm-field">
+        <label>Usuario / ID</label>
+        <div class="crm-field-val">${esc(c.user || '—')}</div>
+      </div>
+      <div class="crm-field">
+        <label>Contraseña</label>
+        <div class="crm-field-val">
+          <span id="pass-${c.id}">${c.pass ? passHidden : '—'}</span>
+          ${c.pass ? `<button class="toggle-pass" id="passBtn-${c.id}" onclick="togglePass('${c.id}')" aria-label="Mostrar/ocultar contraseña">
+            <i class="ti ti-eye"></i>
+          </button>` : ''}
+        </div>
+      </div>
+    </div>
+    ${c.obs ? `<div class="crm-obs">${esc(c.obs)}</div>` : ''}
+  </article>`;
+            }).join('');
+
+            list.innerHTML = `<div class="crm-grid">${cards}</div>`;
+        }
+
+        async function setupMasterPassword(e) {
+            e.preventDefault();
+            const p1 = document.getElementById('setupPass').value;
+            const p2 = document.getElementById('setupPassConfirm').value;
+            if (p1 !== p2) {
+                alert('Las contraseñas no coinciden.');
+                return;
+            }
+            if (p1.length < 4) {
+                alert('La contraseña debe tener al menos 4 caracteres.');
+                return;
+            }
+            try {
+                const verEnc = await encryptData("VERIFIED", p1);
+                localStorage.setItem(PRIVATE_VERIFY_KEY, verEnc);
+                
+                const initialPayload = await encryptData("[]", p1);
+                localStorage.setItem(PRIVATE_DATA_KEY, initialPayload);
+                
+                sessionPassword = p1;
+                unlocked = true;
+                privateItems = [];
+                
+                toast('Contraseña maestra configurada');
+                resetInactivityTimeout();
+                switchTab('private');
+            } catch (err) {
+                alert('Error al configurar contraseña: ' + err.message);
+            }
+        }
+
+        async function unlockPrivateSection(e) {
+            e.preventDefault();
+            const pass = document.getElementById('masterPass').value;
+            const verifyToken = localStorage.getItem(PRIVATE_VERIFY_KEY);
+            if (!verifyToken) {
+                alert('No hay contraseña configurada.');
+                return;
+            }
+            try {
+                const decToken = await decryptData(verifyToken, pass);
+                if (decToken === "VERIFIED") {
+                    sessionPassword = pass;
+                    unlocked = true;
+                    
+                    const dataEnc = localStorage.getItem(PRIVATE_DATA_KEY);
+                    if (dataEnc) {
+                        const decData = await decryptData(dataEnc, pass);
+                        privateItems = JSON.parse(decData);
+                    } else {
+                        privateItems = [];
+                    }
+                    
+                    toast('Sección privada desbloqueada');
+                    resetInactivityTimeout();
+                    switchTab('private');
+                } else {
+                    alert('Contraseña incorrecta.');
+                }
+            } catch (err) {
+                alert('Contraseña incorrecta o datos corruptos.');
+            }
+        }
+
+        function lockPrivate() {
+            sessionPassword = '';
+            unlocked = false;
+            privateItems = [];
+            if (lockTimer) clearTimeout(lockTimer);
+            if (currentTab === 'private') {
+                render();
+            }
+            document.getElementById('btnLock').style.display = 'none';
+            if (currentTab === 'private') {
+                document.getElementById('btnNuevo').style.display = 'none';
+            }
+        }
+
+        function render() {
+            const q = document.getElementById('search').value.toLowerCase();
+            const fs = document.getElementById('filterSector').value;
+            const fsEl = document.getElementById('filterSector');
+            const btnLock = document.getElementById('btnLock');
+            const btnNuevo = document.getElementById('btnNuevo');
+
+            if (currentTab === 'private') {
+                fsEl.style.display = 'none';
+                if (unlocked) {
+                    btnLock.style.display = 'inline-flex';
+                    btnNuevo.style.display = '';
+                } else {
+                    btnLock.style.display = 'none';
+                    btnNuevo.style.display = 'none';
+                }
+            } else {
+                fsEl.style.display = '';
+                btnLock.style.display = 'none';
+                btnNuevo.style.display = '';
+            }
+
+            if (currentTab === 'crms') {
+                renderCRMs(q, fs);
+            } else if (currentTab === 'domains') {
+                renderDomains(q, fs);
+            } else if (currentTab === 'private') {
+                if (!unlocked) {
+                    renderLockScreen();
+                } else {
+                    renderPrivateItems(q);
+                }
+            }
+        }
+
+        function esc(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        function escAttr(s) {
+            return String(s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        async function generateEncryptedPDF(password, includePrivate, privateList) {
+            const { jsPDF } = window.jspdf;
+            
+            const doc = new jsPDF({
+                orientation: 'p',
+                unit: 'mm',
+                format: 'a4',
+                encryption: {
+                    userPassword: password,
+                    ownerPassword: password,
+                    userPermissions: ["print", "copy"]
+                }
+            });
+
+            // Header of the PDF
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.setTextColor(28, 28, 26);
+            doc.text("Gestor de Accesos", 15, 20);
+            
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(136, 135, 128); // var(--text-tertiary) style color
+            doc.text(`Reporte de Credenciales y Accesos · Generado el ${new Date().toLocaleString('es-ES')}`, 15, 26);
+            
+            // Thin separator line
+            doc.setDrawColor(218, 218, 215); // light gray border
+            doc.setLineWidth(0.3);
+            doc.line(15, 29, 195, 29);
+            
+            let currentY = 36;
+
+            // --- SECTION 1: CRMs ---
+            if (crms.length > 0) {
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(13);
+                doc.setTextColor(28, 28, 26);
+                doc.text("1. Accesos de CRMs", 15, currentY);
+                currentY += 5;
+                
+                const crmBody = crms.map(c => [
+                    c.sector || '—',
+                    c.marca || '—',
+                    c.url || '—',
+                    c.user || '—',
+                    c.pass || '—',
+                    c.obs || '—'
+                ]);
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Sector', 'Marca', 'URL', 'Usuario', 'Contraseña', 'Observaciones']],
+                    body: crmBody,
+                    theme: 'striped',
+                    headStyles: { fillColor: [28, 28, 26], textColor: [255, 255, 255], fontStyle: 'bold' },
+                    styles: { fontSize: 8.5, cellPadding: 2.5, overflow: 'linebreak' },
+                    columnStyles: {
+                        2: { cellWidth: 38 }, // URL column
+                        5: { cellWidth: 38 }  // Observaciones column
+                    },
+                    margin: { left: 15, right: 15 }
+                });
+                
+                currentY = doc.lastAutoTable.finalY + 10;
+            }
+
+            // --- SECTION 2: DOMINIOS Y EMAILS ---
+            if (domains.length > 0) {
+                if (currentY > 260) {
+                    doc.addPage();
+                    currentY = 20;
+                }
+                
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(13);
+                doc.setTextColor(28, 28, 26);
+                doc.text("2. Dominios y Emails", 15, currentY);
+                currentY += 5;
+
+                const domainBody = domains.map(d => [
+                    d.sector || '—',
+                    d.marca || '—',
+                    d.url || '—',
+                    d.user || '—',
+                    d.pass || '—',
+                    d.obs || '—'
+                ]);
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Proveedor', 'Dominio', 'URL de Acceso', 'Email / Usuario', 'Contraseña', 'Observaciones']],
+                    body: domainBody,
+                    theme: 'striped',
+                    headStyles: { fillColor: [80, 80, 78], textColor: [255, 255, 255], fontStyle: 'bold' },
+                    styles: { fontSize: 8.5, cellPadding: 2.5, overflow: 'linebreak' },
+                    columnStyles: {
+                        2: { cellWidth: 38 }, // URL column
+                        5: { cellWidth: 38 }  // Observaciones column
+                    },
+                    margin: { left: 15, right: 15 }
+                });
+
+                currentY = doc.lastAutoTable.finalY + 10;
+            }
+
+            // --- SECTION 3: CONTRASEÑAS PRIVADAS ---
+            if (includePrivate && privateList && privateList.length > 0) {
+                if (currentY > 260) {
+                    doc.addPage();
+                    currentY = 20;
+                }
+
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(13);
+                doc.setTextColor(163, 45, 45); // Burgundy/Red
+                doc.text("3. Contraseñas Privadas (Sección Protegida)", 15, currentY);
+                currentY += 5;
+
+                const privateBody = privateList.map(p => [
+                    p.marca || '—',
+                    p.user || '—',
+                    p.pass || '—',
+                    p.obs || '—'
+                ]);
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Servicio / Título', 'Usuario / Identificador', 'Contraseña', 'Observaciones']],
+                    body: privateBody,
+                    theme: 'striped',
+                    headStyles: { fillColor: [163, 45, 45], textColor: [255, 255, 255], fontStyle: 'bold' },
+                    alternateRowStyles: { fillColor: [252, 235, 235] },
+                    styles: { fontSize: 8.5, cellPadding: 2.5, overflow: 'linebreak' },
+                    columnStyles: {
+                        3: { cellWidth: 60 } // Observaciones
+                    },
+                    margin: { left: 15, right: 15 }
+                });
+            }
+
+            // Add page numbers at the bottom of each page
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                doc.setTextColor(136, 135, 128);
+                doc.text(`Página ${i} de ${pageCount}`, 105, 287, { align: "center" });
+            }
+
+            doc.save("gestor_accesos_protegido.pdf");
+        }
+
+        async function exportToPDF() {
+            if (crms.length === 0 && domains.length === 0 && privateItems.length === 0) {
+                toast("No hay credenciales registradas para exportar.");
+                return;
+            }
+
+            const hasPasswordSet = !!localStorage.getItem(PRIVATE_VERIFY_KEY);
+
+            if (!hasPasswordSet) {
+                const pass = prompt("No has configurado una contraseña maestra en la pestaña 'Contraseñas Privadas'. Para proteger el PDF, escribe una nueva contraseña:");
+                if (pass === null) return; // Cancelled
+                if (pass.trim().length < 4) {
+                    alert("La contraseña debe tener al menos 4 caracteres.");
+                    return;
+                }
+                
+                try {
+                    toast("Generando PDF protegido...");
+                    await generateEncryptedPDF(pass, false, []);
+                    toast("PDF descargado correctamente.");
+                } catch (e) {
+                    alert("Error al generar el PDF: " + e.message);
+                }
+                return;
+            }
+
+            if (unlocked) {
+                try {
+                    toast("Generando PDF protegido con tu contraseña maestra...");
+                    await generateEncryptedPDF(sessionPassword, true, privateItems);
+                    toast("PDF descargado correctamente.");
+                } catch (e) {
+                    alert("Error al generar el PDF: " + e.message);
+                }
+            } else {
+                const pass = prompt("Introduce tu contraseña maestra para descifrar las contraseñas privadas y proteger el PDF:");
+                if (pass === null) return; // Cancelled
+                
+                const verifyToken = localStorage.getItem(PRIVATE_VERIFY_KEY);
+                try {
+                    const decToken = await decryptData(verifyToken, pass);
+                    if (decToken === "VERIFIED") {
+                        let tempPrivateItems = [];
+                        const dataEnc = localStorage.getItem(PRIVATE_DATA_KEY);
+                        if (dataEnc) {
+                            const decData = await decryptData(dataEnc, pass);
+                            tempPrivateItems = JSON.parse(decData);
+                        }
+                        
+                        sessionPassword = pass;
+                        unlocked = true;
+                        privateItems = tempPrivateItems;
+                        resetInactivityTimeout();
+                        render();
+                        
+                        toast("Generando PDF protegido con tu contraseña maestra...");
+                        await generateEncryptedPDF(pass, true, tempPrivateItems);
+                        toast("PDF descargado correctamente.");
+                    } else {
+                        alert("Contraseña maestra incorrecta.");
+                    }
+                } catch (e) {
+                    alert("Contraseña maestra incorrecta o datos corruptos.");
+                }
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        load();
+    </script>
+</body>
+
+</html>
