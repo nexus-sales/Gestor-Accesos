@@ -1,2 +1,6 @@
 # Credenciales — NUNCA subir a GitHub
+.env
 js/env.js
+
+# Dependencias
+node_modules/

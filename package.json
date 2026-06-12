@@ -4,5 +4,8 @@
   "private": true,
   "scripts": {
     "build": "node build.js"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5"
   }
 }
