@@ -1,0 +1,106 @@
+// Exportación a PDF cifrado con la contraseña maestra del usuario
+
+async function exportToPDF() {
+  if (!vaultPassword) { showToast('Desbloquea la bóveda antes de exportar.'); return; }
+  if (!crms.length && !domains.length && !privateItems.length) {
+    showToast('No hay datos para exportar.'); return;
+  }
+
+  showToast('Generando PDF cifrado…');
+
+  try {
+    await generatePDF(vaultPassword);
+    showToast('PDF descargado correctamente.');
+  } catch (e) {
+    alert('Error al generar el PDF: ' + e.message);
+  }
+}
+
+async function generatePDF(password) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: 'p', unit: 'mm', format: 'a4',
+    encryption: {
+      userPassword: password,
+      ownerPassword: password,
+      userPermissions: ['print', 'copy']
+    }
+  });
+
+  // Cabecera
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.setTextColor(28, 28, 26);
+  doc.text('Gestor de Accesos', 15, 20);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(136, 135, 128);
+  doc.text(`Exportado el ${new Date().toLocaleString('es-ES')} · Protegido con contraseña`, 15, 26);
+  doc.setDrawColor(218, 218, 215);
+  doc.setLineWidth(0.3);
+  doc.line(15, 30, 195, 30);
+
+  let y = 37;
+
+  // CRMs
+  if (crms.length > 0) {
+    y = addSection(doc, y, '1. Accesos de CRMs', [28, 28, 26],
+      ['Sector', 'Marca', 'URL', 'Usuario', 'Contraseña', 'Observaciones'],
+      crms.map(c => [c.sector||'—', c.marca||'—', c.url||'—', c.user||'—', c.pass||'—', c.obs||'—'])
+    );
+  }
+
+  // Dominios
+  if (domains.length > 0) {
+    if (y > 255) { doc.addPage(); y = 20; }
+    y = addSection(doc, y, '2. Dominios y Emails', [80, 80, 78],
+      ['Proveedor', 'Dominio', 'URL', 'Email/Usuario', 'Contraseña', 'Observaciones'],
+      domains.map(d => [d.sector||'—', d.marca||'—', d.url||'—', d.user||'—', d.pass||'—', d.obs||'—'])
+    );
+  }
+
+  // Contraseñas privadas
+  if (privateItems.length > 0) {
+    if (y > 255) { doc.addPage(); y = 20; }
+    y = addSection(doc, y, '3. Contraseñas Privadas', [163, 45, 45],
+      ['Servicio/Título', 'Usuario/ID', 'Contraseña', 'Observaciones'],
+      privateItems.map(p => [p.marca||'—', p.user||'—', p.pass||'—', p.obs||'—']),
+      [252, 235, 235]
+    );
+  }
+
+  // Paginación
+  const total = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(136, 135, 128);
+    doc.text(`Página ${i} de ${total}`, 105, 287, { align: 'center' });
+  }
+
+  doc.save('gestor_accesos_protegido.pdf');
+}
+
+function addSection(doc, y, title, color, head, body, altFill) {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...color);
+  doc.text(title, 15, y);
+
+  const opts = {
+    startY: y + 4,
+    head: [head],
+    body,
+    theme: 'striped',
+    headStyles: { fillColor: color, textColor: [255,255,255], fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
+    columnStyles: { [head.length - 1]: { cellWidth: 40 } },
+    margin: { left: 15, right: 15 }
+  };
+  if (altFill) opts.alternateRowStyles = { fillColor: altFill };
+
+  doc.autoTable(opts);
+  return doc.lastAutoTable.finalY + 10;
+}
