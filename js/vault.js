@@ -2,6 +2,7 @@
 
 async function loadVaultFromSupabase() {
   if (!currentUser || !vaultPassword) throw new Error('Sin autenticación');
+  if (!(await hasAal2Session())) throw new Error('Verifica el 2FA antes de acceder a la bóveda');
 
   const { data, error } = await sb
     .from('vaults_ga')
@@ -27,6 +28,7 @@ async function loadVaultFromSupabase() {
 
 async function saveVaultToSupabase() {
   if (!currentUser || !vaultPassword) return;
+  if (!(await hasAal2Session())) throw new Error('Verifica el 2FA antes de sincronizar la bóveda');
 
   setSyncStatus('syncing');
   try {

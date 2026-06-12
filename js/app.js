@@ -71,6 +71,11 @@ function switchTab(tabId) {
     b.classList.toggle('active', b.id === 'tab-' + tabId);
     b.setAttribute('aria-selected', b.id === 'tab-' + tabId);
   });
+  document.querySelectorAll('.mobile-nav-item').forEach(b => {
+    const active = b.dataset.tab === tabId;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-current', active ? 'page' : 'false');
+  });
   document.getElementById('filterSector').classList.toggle('hidden', tabId === 'private');
   document.getElementById('search').value = '';
   updateBtnNew();
@@ -200,8 +205,13 @@ async function saveEntry() {
   let sector = '', url = '';
   if (currentTab !== 'private') {
     sector = document.getElementById('fSector').value.trim();
-    url    = document.getElementById('fUrl').value.trim();
+    url    = normalizeUrl(document.getElementById('fUrl').value.trim());
     if (!sector || !url) { alert('Sector/Proveedor y URL son obligatorios.'); return; }
+    if (!isAllowedUrl(url)) {
+      alert('La URL debe empezar por http:// o https:// y ser válida.');
+      document.getElementById('fUrl').focus();
+      return;
+    }
   }
 
   const entry = {
@@ -268,6 +278,100 @@ function toggleCardPass(id) {
   el.textContent   = visiblePass[id] ? entry.pass : '•'.repeat(Math.min(entry.pass.length, 10));
   btn.innerHTML    = visiblePass[id] ? '<i class="ti ti-eye-off"></i>' : '<i class="ti ti-eye"></i>';
   resetInactivity();
+}
+
+// ── Copiado y generación de contraseñas ──────────────────────
+
+function generatePassword() {
+  const pass = createPassword(20);
+  const input = document.getElementById('fPass');
+  input.value = pass;
+  input.type = 'text';
+  document.getElementById('fPassIcon').className = 'ti ti-eye-off';
+  input.focus();
+  input.select();
+  showToast('Contraseña generada');
+}
+
+function createPassword(length) {
+  const groups = [
+    'ABCDEFGHJKLMNPQRSTUVWXYZ',
+    'abcdefghijkmnopqrstuvwxyz',
+    '23456789',
+    '!@#$%^&*()-_=+[]{}'
+  ];
+  const all = groups.join('');
+  const picked = groups.map(chars => randomChar(chars));
+  while (picked.length < length) picked.push(randomChar(all));
+  return shuffle(picked).join('');
+}
+
+function randomChar(chars) {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return chars[bytes[0] % chars.length];
+}
+
+function shuffle(items) {
+  for (let i = items.length - 1; i > 0; i--) {
+    const bytes = new Uint32Array(1);
+    crypto.getRandomValues(bytes);
+    const j = bytes[0] % (i + 1);
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+async function copyFieldValue(inputId, message) {
+  const value = document.getElementById(inputId)?.value;
+  if (!value) { showToast('No hay nada que copiar'); return; }
+  await copyText(value, message);
+}
+
+async function copyEntryField(id, field, message) {
+  const col = currentTab === 'crms' ? crms : currentTab === 'domains' ? domains : privateItems;
+  const entry = col.find(x => x.id === id);
+  const value = entry?.[field];
+  if (!value) { showToast('No hay nada que copiar'); return; }
+  await copyText(value, message);
+  resetInactivity();
+}
+
+async function copyText(value, message) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const area = document.createElement('textarea');
+      area.value = value;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    showToast(message);
+  } catch {
+    showToast('No se pudo copiar');
+  }
+}
+
+// ── URLs seguras ──────────────────────────────────────────────
+
+function normalizeUrl(value) {
+  if (!value) return '';
+  if (!/^[a-z][a-z\d+.-]*:\/\//i.test(value)) return 'https://' + value;
+  return value;
+}
+
+function isAllowedUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && !!url.hostname;
+  } catch {
+    return false;
+  }
 }
 
 // ── Renderizado ───────────────────────────────────────────────
@@ -349,6 +453,8 @@ function renderPrivate(q) {
 function buildCard(c, isPrivate = false) {
   const passHidden = c.pass ? '•'.repeat(Math.min(c.pass.length, 10)) : '—';
   const border = isPrivate ? ' style="border-left:3px solid #a32d2d"' : '';
+  const normalizedUrl = normalizeUrl(c.url);
+  const url = normalizedUrl && isAllowedUrl(normalizedUrl) ? normalizedUrl : '';
   return `<article class="crm-card"${border}>
     <div class="crm-card-header">
       <span class="crm-brand">${esc(c.marca)}</span>
@@ -361,22 +467,32 @@ function buildCard(c, isPrivate = false) {
         </button>
       </div>
     </div>
-    ${c.url ? `<a class="crm-url" href="${escAttr(c.url)}" target="_blank" rel="noopener">
-      <i class="ti ti-external-link"></i>${esc(c.url)}
+    ${url ? `<a class="crm-url" href="${escAttr(url)}" target="_blank" rel="noopener">
+      <i class="ti ti-external-link"></i>${esc(url)}
     </a>` : ''}
     <div class="crm-fields">
       <div class="crm-field">
         <label>${isPrivate ? 'Usuario / ID' : 'Usuario'}</label>
-        <div class="crm-field-val">${esc(c.user || '—')}</div>
+        <div class="crm-field-val">
+          <span>${esc(c.user || '—')}</span>
+          ${c.user ? `<button type="button" class="copy-field" onclick="copyEntryField('${c.id}','user','Usuario copiado')" aria-label="Copiar usuario">
+            <i class="ti ti-copy"></i>
+          </button>` : ''}
+        </div>
       </div>
       <div class="crm-field">
         <label>Contraseña</label>
         <div class="crm-field-val">
           <span id="pass-${c.id}">${c.pass ? passHidden : '—'}</span>
-          ${c.pass ? `<button type="button" class="toggle-pass" id="passBtn-${c.id}"
-            onclick="toggleCardPass('${c.id}')" aria-label="Mostrar/ocultar contraseña">
-            <i class="ti ti-eye"></i>
-          </button>` : ''}
+          ${c.pass ? `<span class="crm-inline-actions">
+            <button type="button" class="toggle-pass" id="passBtn-${c.id}"
+              onclick="toggleCardPass('${c.id}')" aria-label="Mostrar/ocultar contraseña">
+              <i class="ti ti-eye"></i>
+            </button>
+            <button type="button" class="copy-field" onclick="copyEntryField('${c.id}','pass','Contraseña copiada')" aria-label="Copiar contraseña">
+              <i class="ti ti-copy"></i>
+            </button>
+          </span>` : ''}
         </div>
       </div>
     </div>

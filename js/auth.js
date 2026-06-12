@@ -50,10 +50,16 @@ async function initApp() {
     if (!session) { showAuth('login'); return; }
 
     currentUser = session.user;
+    const factors = await getVerifiedTotpFactors();
 
-    const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
-      await beginMfaChallenge();
+    if (factors.length === 0) {
+      await startEnrollment();
+      showAuth('mfa-enroll');
+      return;
+    }
+
+    if (!(await hasAal2Session())) {
+      await beginMfaChallenge(factors);
       showAuth('mfa-verify');
       return;
     }
@@ -82,9 +88,12 @@ async function onLogin(e) {
     currentUser   = data.user;
     vaultPassword = pass;
 
-    const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
-      await beginMfaChallenge();
+    const factors = await getVerifiedTotpFactors();
+    if (factors.length === 0) {
+      await startEnrollment();
+      showAuth('mfa-enroll');
+    } else if (!(await hasAal2Session())) {
+      await beginMfaChallenge(factors);
       showAuth('mfa-verify');
     } else {
       await loadAndShowApp();
@@ -122,7 +131,6 @@ async function onRegister(e) {
     currentUser   = data.user;
     vaultPassword = pass1;
 
-    await saveVaultToSupabase();
     await startEnrollment();
     showAuth('mfa-enroll');
   } catch (err) {
@@ -148,6 +156,7 @@ async function onMfaVerify(e) {
       code
     });
     if (error) throw error;
+    await requireAal2Session();
 
     if (vaultPassword) {
       await loadAndShowApp();
@@ -155,8 +164,8 @@ async function onMfaVerify(e) {
       document.getElementById('unlockEmail').textContent = currentUser?.email || '';
       showAuth('unlock');
     }
-  } catch {
-    showMsg('mfaError', 'Código incorrecto. Inténtalo de nuevo.');
+  } catch (err) {
+    showMsg('mfaError', err.message || 'Código incorrecto. Inténtalo de nuevo.');
     document.getElementById('mfaCode').value = '';
     document.getElementById('mfaCode').focus();
   } finally {
@@ -179,21 +188,15 @@ async function onMfaEnroll(e) {
       code
     });
     if (error) throw error;
+    await requireAal2Session();
 
     showToast('2FA activado correctamente');
+    await saveVaultToSupabase();
     await loadAndShowApp();
-  } catch {
-    showMsg('enrollError', 'Código incorrecto. Verifica tu app de autenticación.');
+  } catch (err) {
+    showMsg('enrollError', err.message || 'Código incorrecto. Verifica tu app de autenticación.');
     document.getElementById('enrollCode').value = '';
   }
-}
-
-async function skipEnroll() {
-  if (enrollingFactorId) {
-    await sb.auth.mfa.unenroll({ factorId: enrollingFactorId }).catch(() => {});
-    enrollingFactorId = null;
-  }
-  await loadAndShowApp();
 }
 
 // ── Desbloquear bóveda ───────────────────────────────────────
@@ -207,6 +210,7 @@ async function onUnlock(e) {
 
   try {
     vaultPassword = pass;
+    if (!(await ensureMfaSatisfied())) return;
     await loadVaultFromSupabase();
     showApp();
     resetInactivity();
@@ -232,6 +236,7 @@ async function onLogout(silent = false) {
 function lockVault() {
   clearVaultData();
   closeMenu();
+  closeMobileMenu();
   document.getElementById('unlockEmail').textContent = currentUser?.email || '';
   showAuth('unlock');
 }
@@ -253,21 +258,29 @@ function closeMenu() {
   document.getElementById('userMenu').classList.add('hidden');
 }
 
+function toggleMobileMenu() {
+  document.getElementById('mobileUserMenu').classList.toggle('hidden');
+}
+
+function closeMobileMenu() {
+  document.getElementById('mobileUserMenu')?.classList.add('hidden');
+}
+
 document.addEventListener('click', e => {
   const wrap = document.querySelector('.user-wrap');
   if (wrap && !wrap.contains(e.target)) closeMenu();
+  const mobileWrap = document.querySelector('.mobile-user-wrap');
+  if (mobileWrap && !mobileWrap.contains(e.target)) closeMobileMenu();
 });
 
 async function openTwoFASettings() {
   closeMenu();
+  closeMobileMenu();
   const { data: factors } = await sb.auth.mfa.listFactors();
-  const totp = factors?.totp ?? [];
+  const totp = getVerifiedFromList(factors?.totp ?? []);
 
   if (totp.length > 0) {
-    const ok = confirm(`2FA está activo.\n¿Deseas desactivarlo?\n\nAtención: perderás protección de doble factor.`);
-    if (!ok) return;
-    const { error } = await sb.auth.mfa.unenroll({ factorId: totp[0].id });
-    if (!error) showToast('2FA desactivado');
+    alert('2FA es obligatorio para proteger la bóveda. No se puede desactivar desde la app.');
   } else {
     const ok = confirm('¿Activar la autenticación en dos pasos (2FA)?');
     if (!ok) return;
@@ -286,6 +299,7 @@ async function openTwoFASettings() {
 async function loadAndShowApp() {
   showLoading();
   try {
+    if (!(await ensureMfaSatisfied())) return;
     await loadVaultFromSupabase();
     showApp();
     resetInactivity();
@@ -296,12 +310,51 @@ async function loadAndShowApp() {
   }
 }
 
-async function beginMfaChallenge() {
-  const { data: factors } = await sb.auth.mfa.listFactors();
-  const totp = factors?.totp ?? [];
+async function ensureMfaSatisfied() {
+  const factors = await getVerifiedTotpFactors();
+  if (factors.length === 0) {
+    await startEnrollment();
+    showAuth('mfa-enroll');
+    return false;
+  }
+  if (!(await hasAal2Session())) {
+    await beginMfaChallenge(factors);
+    showAuth('mfa-verify');
+    return false;
+  }
+  return true;
+}
+
+async function hasAal2Session() {
+  const { data: aal, error } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (error) throw error;
+  return aal?.currentLevel === 'aal2';
+}
+
+async function requireAal2Session() {
+  if (await hasAal2Session()) return;
+  await sb.auth.refreshSession();
+  if (!(await hasAal2Session())) {
+    throw new Error('La sesión todavía no está verificada con 2FA. Vuelve a intentarlo.');
+  }
+}
+
+async function getVerifiedTotpFactors() {
+  const { data: factors, error } = await sb.auth.mfa.listFactors();
+  if (error) throw error;
+  return getVerifiedFromList(factors?.totp ?? []);
+}
+
+function getVerifiedFromList(factors) {
+  return factors.filter(f => (f.status || f.factor_status) === 'verified');
+}
+
+async function beginMfaChallenge(knownFactors) {
+  const totp = knownFactors || await getVerifiedTotpFactors();
   if (totp.length === 0) return;
   pendingFactorId = totp[0].id;
-  const { data: ch } = await sb.auth.mfa.challenge({ factorId: pendingFactorId });
+  const { data: ch, error } = await sb.auth.mfa.challenge({ factorId: pendingFactorId });
+  if (error) throw error;
   pendingChallengeId = ch.id;
 }
 
@@ -372,4 +425,3 @@ function authError(msg) {
   };
   return map[msg] ?? msg;
 }
-

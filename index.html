@@ -61,7 +61,7 @@
       <!-- Registro -->
       <div id="view-register" class="hidden">
         <h2 class="auth-title">Crear cuenta</h2>
-        <p class="auth-sub">Bóveda cifrada y sincronizada en la nube</p>
+        <p class="auth-sub">Bóveda cifrada, sincronizada y protegida con 2FA</p>
         <form onsubmit="onRegister(event)">
           <div class="form-group">
             <label for="rEmail">Email</label>
@@ -139,7 +139,7 @@
           </button>
         </form>
         <div class="auth-alt">
-          <button type="button" class="link-btn" onclick="skipEnroll()">Configurar más tarde</button>
+          <button type="button" class="link-btn" onclick="onLogout(true)">Cancelar y cerrar sesión</button>
         </div>
       </div>
 
@@ -233,6 +233,23 @@
   <div class="app-main">
     <header class="topbar">
       <h1 class="page-title" id="pageTitle">CRMs</h1>
+      <div class="mobile-user-wrap">
+        <button type="button" class="btn icon-only mobile-user-btn" aria-label="Menú de usuario" onclick="toggleMobileMenu()">
+          <i class="ti ti-user-circle"></i>
+        </button>
+        <div id="mobileUserMenu" class="user-menu mobile-user-menu hidden">
+          <button type="button" class="menu-item" onclick="openTwoFASettings()">
+            <i class="ti ti-shield"></i> Autenticación 2FA
+          </button>
+          <hr class="menu-sep" />
+          <button type="button" class="menu-item" onclick="lockVault()">
+            <i class="ti ti-lock"></i> Bloquear bóveda
+          </button>
+          <button type="button" class="menu-item danger" onclick="onLogout()">
+            <i class="ti ti-logout"></i> Cerrar sesión
+          </button>
+        </div>
+      </div>
       <div class="topbar-actions">
         <div class="search-wrap">
           <i class="ti ti-search"></i>
@@ -295,6 +312,14 @@
             <i class="ti ti-eye" id="fPassIcon"></i>
           </button>
         </div>
+        <div class="field-actions">
+          <button type="button" class="mini-action" onclick="generatePassword()" title="Generar contraseña">
+            <i class="ti ti-sparkles"></i> Generar
+          </button>
+          <button type="button" class="mini-action" onclick="copyFieldValue('fPass','Contraseña copiada')" title="Copiar contraseña">
+            <i class="ti ti-copy"></i> Copiar
+          </button>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -311,6 +336,21 @@
 </div>
 
 <div id="toast" class="toast"></div>
+
+<nav class="mobile-nav" aria-label="Navegación principal">
+  <button type="button" class="mobile-nav-item active" data-tab="crms" onclick="switchTab('crms')" aria-label="CRMs">
+    <i class="ti ti-database"></i>
+    <span>CRMs</span>
+  </button>
+  <button type="button" class="mobile-nav-item" data-tab="domains" onclick="switchTab('domains')" aria-label="Dominios">
+    <i class="ti ti-world"></i>
+    <span>Dominios</span>
+  </button>
+  <button type="button" class="mobile-nav-item" data-tab="private" onclick="switchTab('private')" aria-label="Privadas">
+    <i class="ti ti-shield-lock"></i>
+    <span>Privadas</span>
+  </button>
+</nav>
 
 <script src="js/env.js"></script>
 <script src="js/config.js"></script>
