@@ -368,10 +368,24 @@ async function startEnrollment() {
   enrollingFactorId = data.id;
 
   const qrBox = document.getElementById('qrBox');
+  qrBox.innerHTML = '';
   if (data.totp?.qr_code) {
-    qrBox.innerHTML = data.totp.qr_code;
-    const svg = qrBox.querySelector('svg');
-    if (svg) { svg.style.width = '180px'; svg.style.height = '180px'; }
+    const qrCode = data.totp.qr_code;
+    if (qrCode.startsWith('data:')) {
+      const img = document.createElement('img');
+      img.src = qrCode;
+      img.alt = 'QR 2FA';
+      img.style.cssText = 'width:260px;height:260px;display:block;margin:0 auto;';
+      qrBox.appendChild(img);
+    } else {
+      qrBox.innerHTML = qrCode;
+      const svg = qrBox.querySelector('svg');
+      if (svg) {
+        svg.setAttribute('width', '260');
+        svg.setAttribute('height', '260');
+        svg.style.cssText = 'display:block;margin:0 auto;';
+      }
+    }
   }
   document.getElementById('secretCode').textContent = data.totp?.secret ?? '';
 }
