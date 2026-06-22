@@ -84,11 +84,18 @@ function switchTab(tabId) {
 
 function updateBtnNew() {
   const labels = { crms: 'Nuevo CRM', domains: 'Nuevo Dominio', private: 'Nueva Contraseña' };
-  const titles = { crms: 'CRMs', domains: 'Dominios y Emails', private: 'Contraseñas Privadas' };
+  const titles = { crms: 'CRMs', domains: 'Dominios y emails', private: 'Contraseñas privadas' };
+  const descriptions = {
+    crms: 'Tus accesos de trabajo, ordenados y protegidos.',
+    domains: 'Dominios, proveedores y cuentas de correo en un solo lugar.',
+    private: 'Credenciales personales protegidas con cifrado AES-256.'
+  };
   const btn     = document.getElementById('btnNew');
   const titleEl = document.getElementById('pageTitle');
   if (btn)     btn.innerHTML    = `<i class="ti ti-plus"></i> ${labels[currentTab]}`;
   if (titleEl) titleEl.textContent = titles[currentTab];
+  const descriptionEl = document.getElementById('pageDescription');
+  if (descriptionEl) descriptionEl.textContent = descriptions[currentTab];
 }
 
 // ── Toast ─────────────────────────────────────────────────────
@@ -403,9 +410,10 @@ function renderList(items, q, fs, singular, plural) {
   const list = document.getElementById('list');
   if (filtered.length === 0) {
     list.innerHTML = `<div class="empty">
-      <i class="ti ti-database-off"></i>
-      <p>${items.length === 0 ? `No hay ${plural.toLowerCase()} registrados.` : 'Sin resultados.'}</p>
-      ${items.length === 0 ? `<button type="button" class="btn primary" onclick="openModal()"><i class="ti ti-plus"></i> Añadir</button>` : ''}
+      <div class="empty-icon"><i class="ti ${items.length === 0 ? 'ti-sparkles' : 'ti-search'}"></i></div>
+      <h2>${items.length === 0 ? `Tu espacio de ${plural.toLowerCase()} está listo` : 'No encontramos coincidencias'}</h2>
+      <p>${items.length === 0 ? `Añade tu primer ${singular.toLowerCase()} para tener sus accesos siempre a mano.` : 'Prueba con otro término o cambia el filtro seleccionado.'}</p>
+      ${items.length === 0 ? `<button type="button" class="btn primary empty-action" onclick="openModal()"><i class="ti ti-plus"></i> Añadir ${singular.toLowerCase()}</button>` : ''}
     </div>`;
     return;
   }
@@ -440,9 +448,10 @@ function renderPrivate(q) {
   const list = document.getElementById('list');
   if (filtered.length === 0) {
     list.innerHTML = `<div class="empty">
-      <i class="ti ti-shield-off"></i>
-      <p>${privateItems.length === 0 ? 'No hay contraseñas privadas.' : 'Sin resultados.'}</p>
-      ${privateItems.length === 0 ? '<button type="button" class="btn primary" onclick="openModal()"><i class="ti ti-plus"></i> Añadir</button>' : ''}
+      <div class="empty-icon"><i class="ti ${privateItems.length === 0 ? 'ti-lock-heart' : 'ti-search'}"></i></div>
+      <h2>${privateItems.length === 0 ? 'Tu espacio privado está preparado' : 'No encontramos coincidencias'}</h2>
+      <p>${privateItems.length === 0 ? 'Guarda aquí credenciales personales con cifrado AES-256.' : 'Prueba con otro término de búsqueda.'}</p>
+      ${privateItems.length === 0 ? '<button type="button" class="btn primary empty-action" onclick="openModal()"><i class="ti ti-plus"></i> Añadir contraseña</button>' : ''}
     </div>`;
     return;
   }
