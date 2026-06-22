@@ -13,7 +13,7 @@ async function loadVaultFromSupabase() {
   if (error) {
     if (error.code === 'PGRST116') {
       // Bóveda nueva — sin datos aún
-      crms = []; domains = []; privateItems = [];
+      crms = []; domains = []; privateItems = []; notes = [];
       return;
     }
     throw error;
@@ -24,6 +24,7 @@ async function loadVaultFromSupabase() {
   crms         = Array.isArray(payload.crms)         ? payload.crms         : [];
   domains      = Array.isArray(payload.domains)      ? payload.domains      : [];
   privateItems = Array.isArray(payload.privateItems) ? payload.privateItems : [];
+  notes        = Array.isArray(payload.notes)        ? payload.notes        : [];
 }
 
 async function saveVaultToSupabase() {
@@ -32,7 +33,7 @@ async function saveVaultToSupabase() {
 
   setSyncStatus('syncing');
   try {
-    const payload   = JSON.stringify({ crms, domains, privateItems });
+    const payload   = JSON.stringify({ crms, domains, privateItems, notes });
     const encrypted = await encryptData(payload, vaultPassword);
 
     const { error } = await sb.from('vaults_ga').upsert(
@@ -74,6 +75,7 @@ async function migrateLocalVault() {
     crms         = Array.isArray(payload.crms)         ? payload.crms         : [];
     domains      = Array.isArray(payload.domains)      ? payload.domains      : [];
     privateItems = Array.isArray(payload.privateItems) ? payload.privateItems : [];
+    notes        = Array.isArray(payload.notes)        ? payload.notes        : [];
 
     await saveVaultToSupabase();
 
@@ -83,7 +85,7 @@ async function migrateLocalVault() {
 
     buildColorMap();
     render();
-    showToast(`Migrados ${crms.length + domains.length + privateItems.length} registros a la nube`);
+    showToast(`Migrados ${crms.length + domains.length + privateItems.length + notes.length} registros a la nube`);
   } catch (err) {
     alert('Error al migrar datos locales: ' + err.message);
   }

@@ -196,6 +196,10 @@
         <i class="ti ti-shield-lock"></i>
         <span>Privadas</span>
       </button>
+      <button type="button" class="nav-item" id="tab-notes" onclick="switchTab('notes')" role="tab" aria-selected="false">
+        <i class="ti ti-notebook"></i>
+        <span>Notas</span>
+      </button>
     </nav>
 
     <div class="sidebar-footer">
@@ -299,11 +303,49 @@
         <input type="text" id="fMarca" />
       </div>
     </div>
+    <div id="grpNoteFields" class="hidden">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="fNoteType">Tipo</label>
+          <select id="fNoteType" onchange="configureNoteType()">
+            <option value="procedure">Procedimiento</option>
+            <option value="contact">Contacto</option>
+            <option value="general">Nota general</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="fTags">Etiquetas <small>separadas por comas</small></label>
+          <input type="text" id="fTags" placeholder="Ventas, urgente, proveedor" />
+        </div>
+      </div>
+      <label class="pin-control" for="fPinned">
+        <input type="checkbox" id="fPinned" />
+        <span><i class="ti ti-pin"></i> Fijar esta nota</span>
+      </label>
+      <label class="pin-control private-control" for="fNotePrivate">
+        <input type="checkbox" id="fNotePrivate" />
+        <span><i class="ti ti-lock"></i> Nota privada — pedir contraseña para verla</span>
+      </label>
+      <div class="form-row hidden" id="grpNoteContact">
+        <div class="form-group">
+          <label for="fCompany">Empresa</label>
+          <input type="text" id="fCompany" placeholder="Empresa u organización" />
+        </div>
+        <div class="form-group">
+          <label for="fPhone">Teléfono</label>
+          <input type="tel" id="fPhone" placeholder="+34 600 000 000" />
+        </div>
+        <div class="form-group">
+          <label for="fContactEmail">Email</label>
+          <input type="email" id="fContactEmail" placeholder="contacto@empresa.com" />
+        </div>
+      </div>
+    </div>
     <div class="form-group" id="grpUrl">
       <label id="lblUrl" for="fUrl">URL <span class="required">*</span></label>
       <input type="url" id="fUrl" placeholder="https://" />
     </div>
-    <div class="form-row">
+    <div class="form-row" id="rowCredentials">
       <div class="form-group">
         <label id="lblUser" for="fUser">Usuario</label>
         <input type="text" id="fUser" autocomplete="off" />
@@ -327,7 +369,7 @@
       </div>
     </div>
     <div class="form-group">
-      <label for="fObs">Observaciones</label>
+      <label id="lblObs" for="fObs">Observaciones</label>
       <textarea id="fObs" placeholder="Notas, módulos, permisos…"></textarea>
     </div>
     <div class="modal-footer">
@@ -337,6 +379,26 @@
       </button>
     </div>
   </div>
+</div>
+
+<!-- Reautenticación para notas privadas -->
+<div id="privateNoteOverlay" class="overlay hidden" onclick="privateNoteOverlayClick(event)">
+  <form class="modal private-note-auth" onsubmit="unlockPrivateNote(event)" role="dialog" aria-modal="true" aria-labelledby="privateNoteTitle">
+    <div class="auth-icon-wrap"><i class="ti ti-lock"></i></div>
+    <div class="private-note-auth-copy">
+      <h2 id="privateNoteTitle">Desbloquear nota privada</h2>
+      <p>Introduce la contraseña maestra de la bóveda para acceder a su contenido.</p>
+    </div>
+    <div class="form-group">
+      <label for="fPrivateNotePassword">Contraseña de la bóveda</label>
+      <input type="password" id="fPrivateNotePassword" autocomplete="current-password" required />
+    </div>
+    <div id="privateNoteError" class="auth-error hidden"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn" onclick="closePrivateNoteAccess()">Cancelar</button>
+      <button type="submit" class="btn primary"><i class="ti ti-lock-open"></i> Desbloquear</button>
+    </div>
+  </form>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -353,6 +415,10 @@
   <button type="button" class="mobile-nav-item" data-tab="private" onclick="switchTab('private')" aria-label="Privadas">
     <i class="ti ti-shield-lock"></i>
     <span>Privadas</span>
+  </button>
+  <button type="button" class="mobile-nav-item" data-tab="notes" onclick="switchTab('notes')" aria-label="Notas">
+    <i class="ti ti-notebook"></i>
+    <span>Notas</span>
   </button>
 </nav>
 

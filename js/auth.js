@@ -242,7 +242,8 @@ function lockVault() {
 }
 
 function clearVaultData() {
-  crms = []; domains = []; privateItems = [];
+  clearAllPrivateNoteAccess();
+  crms = []; domains = []; privateItems = []; notes = [];
   vaultPassword = null;
   visiblePass = {};
   if (lockTimer) clearTimeout(lockTimer);

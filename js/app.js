@@ -1,10 +1,13 @@
 // Lógica principal: tabs, CRUD, renderizado
 
-let crms = [], domains = [], privateItems = [];
+let crms = [], domains = [], privateItems = [], notes = [];
 let currentTab  = 'crms';
 let editingId   = null;
 let visiblePass = {};
 let lockTimer   = null;
+let pendingPrivateNote = null;
+const revealedNotes = new Map();
+const privateNoteTimers = new Map();
 
 const SECTOR_COLORS = ['sc-blue','sc-teal','sc-amber','sc-coral','sc-purple','sc-pink','sc-green','sc-red','sc-gray'];
 const sectorColorMap = {};
@@ -77,18 +80,20 @@ function switchTab(tabId) {
     b.setAttribute('aria-current', active ? 'page' : 'false');
   });
   document.getElementById('filterSector').classList.toggle('hidden', tabId === 'private');
+  document.getElementById('filterSector').value = '';
   document.getElementById('search').value = '';
   updateBtnNew();
   render();
 }
 
 function updateBtnNew() {
-  const labels = { crms: 'Nuevo CRM', domains: 'Nuevo Dominio', private: 'Nueva Contraseña' };
-  const titles = { crms: 'CRMs', domains: 'Dominios y emails', private: 'Contraseñas privadas' };
+  const labels = { crms: 'Nuevo CRM', domains: 'Nuevo Dominio', private: 'Nueva Contraseña', notes: 'Nueva Nota' };
+  const titles = { crms: 'CRMs', domains: 'Dominios y emails', private: 'Contraseñas privadas', notes: 'Notas' };
   const descriptions = {
     crms: 'Tus accesos de trabajo, ordenados y protegidos.',
     domains: 'Dominios, proveedores y cuentas de correo en un solo lugar.',
-    private: 'Credenciales personales protegidas con cifrado AES-256.'
+    private: 'Credenciales personales protegidas con cifrado AES-256.',
+    notes: 'Procedimientos, contactos e información útil siempre a mano.'
   };
   const btn     = document.getElementById('btnNew');
   const titleEl = document.getElementById('pageTitle');
@@ -110,45 +115,69 @@ function showToast(msg) {
 // ── Modal ─────────────────────────────────────────────────────
 
 function openModal(id) {
+  const requestedNote = currentTab === 'notes' && id ? notes.find(note => note.id === id) : null;
+  if (requestedNote?.private && !revealedNotes.has(id)) {
+    requestPrivateNoteAccess(id, 'edit');
+    return;
+  }
   editingId = id || null;
-  const titles = { crms: 'CRM', domains: 'Dominio', private: 'Contraseña Privada' };
+  const titles = { crms: 'CRM', domains: 'Dominio', private: 'Contraseña Privada', notes: 'Nota' };
   document.getElementById('modalTitle').textContent =
     (id ? 'Editar ' : 'Nuevo ') + titles[currentTab];
 
   configureModalFields();
 
   if (id) {
-    const items = currentTab === 'crms' ? crms : currentTab === 'domains' ? domains : privateItems;
+    const items = getCurrentCollection();
     const entry = items.find(x => x.id === id);
     if (entry) {
+      const noteData = currentTab === 'notes' ? (revealedNotes.get(id)?.data || entry) : entry;
       document.getElementById('fSector').value = entry.sector || '';
-      document.getElementById('fMarca').value  = entry.marca  || '';
-      document.getElementById('fUrl').value    = entry.url    || '';
-      document.getElementById('fUser').value   = entry.user   || '';
-      document.getElementById('fPass').value   = entry.pass   || '';
-      document.getElementById('fObs').value    = entry.obs    || '';
+      document.getElementById('fMarca').value  = currentTab === 'notes' ? (noteData.title || '') : (entry.marca || '');
+      document.getElementById('fUrl').value    = entry.url || '';
+      document.getElementById('fUser').value   = entry.user || '';
+      document.getElementById('fPass').value   = entry.pass || '';
+      document.getElementById('fObs').value    = currentTab === 'notes' ? (noteData.content || '') : (entry.obs || '');
+      if (currentTab === 'notes') {
+        document.getElementById('fNoteType').value = entry.type || 'general';
+        document.getElementById('fTags').value = Array.isArray(noteData.tags) ? noteData.tags.join(', ') : (noteData.tags || '');
+        document.getElementById('fPinned').checked = !!entry.pinned;
+        document.getElementById('fNotePrivate').checked = !!entry.private;
+        document.getElementById('fCompany').value = noteData.company || '';
+        document.getElementById('fPhone').value = noteData.phone || '';
+        document.getElementById('fContactEmail').value = noteData.email || '';
+        configureNoteType();
+      }
     }
   } else {
-    ['fSector','fMarca','fUrl','fUser','fPass','fObs'].forEach(f => {
+    ['fSector','fMarca','fUrl','fUser','fPass','fObs','fTags','fCompany','fPhone','fContactEmail'].forEach(f => {
       const el = document.getElementById(f);
       if (el) el.value = '';
     });
+    document.getElementById('fNoteType').value = 'procedure';
+    document.getElementById('fPinned').checked = false;
+    document.getElementById('fNotePrivate').checked = false;
+    configureNoteType();
   }
 
   document.getElementById('fPass').type = 'password';
   document.getElementById('fPassIcon').className = 'ti ti-eye';
 
-  if (currentTab !== 'private') updateDatalist();
+  if (!['private', 'notes'].includes(currentTab)) updateDatalist();
   document.getElementById('modalOverlay').classList.remove('hidden');
   setTimeout(() => {
-    const focus = currentTab === 'private' ? 'fMarca' : 'fSector';
+    const focus = ['private', 'notes'].includes(currentTab) ? 'fMarca' : 'fSector';
     document.getElementById(focus)?.focus();
   }, 50);
 }
 
 function closeModal() {
+  const closingId = editingId;
   document.getElementById('modalOverlay').classList.add('hidden');
   editingId = null;
+  if (closingId && notes.find(note => note.id === closingId)?.private && revealedNotes.has(closingId)) {
+    hidePrivateNote(closingId, currentTab === 'notes');
+  }
 }
 
 function overlayClick(e) {
@@ -166,6 +195,16 @@ function configureModalFields() {
   const fMarca    = document.getElementById('fMarca');
   const fUrl      = document.getElementById('fUrl');
   const fUser     = document.getElementById('fUser');
+  const rowSectorMarca = document.getElementById('rowSectorMarca');
+  const rowCredentials = document.getElementById('rowCredentials');
+  const grpNoteFields = document.getElementById('grpNoteFields');
+  const lblObs = document.getElementById('lblObs');
+
+  rowCredentials.classList.remove('hidden');
+  grpNoteFields.classList.add('hidden');
+  lblObs.textContent = 'Observaciones';
+  document.getElementById('fObs').placeholder = 'Notas, módulos, permisos…';
+  rowSectorMarca.classList.toggle('single-field', ['private', 'notes'].includes(currentTab));
 
   if (currentTab === 'crms') {
     grpSector.classList.remove('hidden'); grpUrl.classList.remove('hidden');
@@ -187,12 +226,36 @@ function configureModalFields() {
     fUrl.placeholder    = 'https://godaddy.com';
     lblUser.textContent = 'Email / Usuario';
     fUser.placeholder   = 'admin@mi-web.com';
-  } else {
+  } else if (currentTab === 'private') {
     grpSector.classList.add('hidden'); grpUrl.classList.add('hidden');
     lblMarca.innerHTML  = 'Servicio / Título <span class="required">*</span>';
     fMarca.placeholder  = 'ej. Banco, Correo, App';
     lblUser.textContent = 'Usuario / Identificador';
     fUser.placeholder   = 'usuario123';
+  } else {
+    grpSector.classList.add('hidden'); grpUrl.classList.add('hidden');
+    rowCredentials.classList.add('hidden'); grpNoteFields.classList.remove('hidden');
+    lblMarca.innerHTML = 'Título <span class="required">*</span>';
+    fMarca.placeholder = 'ej. Alta de un nuevo cliente';
+    lblObs.innerHTML = 'Contenido <span class="required">*</span>';
+    document.getElementById('fObs').placeholder = 'Escribe aquí el procedimiento, datos de contacto o información útil…';
+    configureNoteType();
+  }
+}
+
+function configureNoteType() {
+  const isContact = document.getElementById('fNoteType')?.value === 'contact';
+  document.getElementById('grpNoteContact')?.classList.toggle('hidden', !isContact);
+  if (currentTab === 'notes') {
+    document.getElementById('lblMarca').innerHTML = isContact
+      ? 'Nombre del contacto <span class="required">*</span>'
+      : 'Título <span class="required">*</span>';
+    document.getElementById('lblObs').innerHTML = isContact
+      ? 'Información adicional'
+      : 'Contenido <span class="required">*</span>';
+    document.getElementById('fObs').placeholder = isContact
+      ? 'Horario, función, contexto o cualquier detalle útil…'
+      : 'Escribe aquí el procedimiento o la información que quieras conservar…';
   }
 }
 
@@ -206,6 +269,7 @@ function updateDatalist() {
 // ── CRUD ──────────────────────────────────────────────────────
 
 async function saveEntry() {
+  if (currentTab === 'notes') { await saveNoteEntry(); return; }
   const marca = document.getElementById('fMarca').value.trim();
   if (!marca) { alert('El nombre del servicio es obligatorio.'); return; }
 
@@ -254,20 +318,78 @@ async function saveEntry() {
   showToast(editingId ? 'Registro actualizado' : 'Registro guardado');
 }
 
+async function saveNoteEntry() {
+  const title = document.getElementById('fMarca').value.trim();
+  const content = document.getElementById('fObs').value.trim();
+  const type = document.getElementById('fNoteType').value;
+  const company = document.getElementById('fCompany').value.trim();
+  const phone = document.getElementById('fPhone').value.trim();
+  const email = document.getElementById('fContactEmail').value.trim();
+  if (!title) { alert('El título es obligatorio.'); return; }
+  if (type !== 'contact' && !content) { alert('El contenido es obligatorio.'); return; }
+  if (type === 'contact' && !content && !company && !phone && !email) {
+    alert('Añade al menos un dato de contacto o una observación.'); return;
+  }
+
+  const previous = editingId ? notes.find(note => note.id === editingId) : null;
+  const isPrivate = document.getElementById('fNotePrivate').checked;
+  const secretFields = {
+    title,
+    content,
+    tags: [...new Set(document.getElementById('fTags').value.split(',').map(tag => tag.trim()).filter(Boolean))],
+    company: type === 'contact' ? company : '',
+    phone: type === 'contact' ? phone : '',
+    email: type === 'contact' ? email : ''
+  };
+  const entry = {
+    id: editingId || crypto.randomUUID(),
+    type,
+    pinned: document.getElementById('fPinned').checked,
+    private: isPrivate,
+    created: previous?.created || Date.now(),
+    updated: Date.now()
+  };
+
+  if (isPrivate) {
+    entry.secretData = await encryptData(JSON.stringify(secretFields), vaultPassword);
+  } else {
+    Object.assign(entry, secretFields);
+  }
+
+  if (previous) {
+    if (privateNoteTimers.has(previous.id)) clearTimeout(privateNoteTimers.get(previous.id));
+    privateNoteTimers.delete(previous.id);
+    revealedNotes.delete(previous.id);
+    notes[notes.findIndex(note => note.id === editingId)] = entry;
+  }
+  else notes.push(entry);
+
+  await save();
+  closeModal();
+  render();
+  showToast(previous ? 'Nota actualizada' : 'Nota guardada');
+}
+
 async function deleteEntry(id) {
-  const col = currentTab === 'crms' ? crms : currentTab === 'domains' ? domains : privateItems;
+  const col = getCurrentCollection();
   const entry = col.find(x => x.id === id);
   if (!entry) return;
-  if (!confirm(`¿Eliminar "${entry.marca}"?`)) return;
+  const displayTitle = revealedNotes.get(id)?.data?.title || entry.title || entry.marca || 'Nota privada';
+  if (!confirm(`¿Eliminar "${displayTitle}"?`)) return;
 
   const filtered = col.filter(x => x.id !== id);
   if (currentTab === 'crms') crms = filtered;
   else if (currentTab === 'domains') domains = filtered;
-  else privateItems = filtered;
+  else if (currentTab === 'private') privateItems = filtered;
+  else notes = filtered;
 
   await save();
   render();
   showToast('Registro eliminado');
+}
+
+function getCurrentCollection() {
+  return { crms, domains, private: privateItems, notes }[currentTab] || [];
 }
 
 // ── Mostrar/ocultar contraseña en card ────────────────────────
@@ -389,7 +511,8 @@ function render() {
 
   if (currentTab === 'crms')    renderList(crms,    q, fs, 'CRM',    'CRMs');
   else if (currentTab === 'domains') renderList(domains, q, fs, 'Dominio', 'Dominios');
-  else renderPrivate(q);
+  else if (currentTab === 'private') renderPrivate(q);
+  else renderNotes(q, fs);
 }
 
 function renderList(items, q, fs, singular, plural) {
@@ -459,6 +582,159 @@ function renderPrivate(q) {
   list.innerHTML = `<div class="crm-grid">${filtered.map(c => buildCard(c, true)).join('')}</div>`;
 }
 
+function renderNotes(q, typeFilter) {
+  const typeLabels = { procedure: 'Procedimientos', contact: 'Contactos', general: 'Notas generales' };
+  const filter = document.getElementById('filterSector');
+  filter.innerHTML = '<option value="">Todas las notas</option>' +
+    Object.entries(typeLabels).map(([value, label]) => `<option value="${value}"${value === typeFilter ? ' selected' : ''}>${label}</option>`).join('');
+  const filtered = notes.filter(note => {
+    const view = revealedNotes.get(note.id)?.data || note;
+    const haystack = [view.title, view.content, typeLabels[note.type], view.company, view.phone, view.email, ...(view.tags || []), note.private ? 'privada' : '']
+      .join(' ').toLowerCase();
+    return (!q || haystack.includes(q)) && (!typeFilter || note.type === typeFilter);
+  });
+  const pinnedCount = notes.filter(note => note.pinned).length;
+  document.getElementById('statusBar').innerHTML =
+    `<span class="status-dot note-status-dot"></span> ${notes.length} nota${notes.length !== 1 ? 's' : ''}` +
+    (pinnedCount ? ` · ${pinnedCount} fijada${pinnedCount !== 1 ? 's' : ''}` : '') + ' · Cifrado AES-256';
+
+  const list = document.getElementById('list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty">
+      <div class="empty-icon"><i class="ti ${notes.length ? 'ti-search' : 'ti-notebook'}"></i></div>
+      <h2>${notes.length ? 'No encontramos coincidencias' : 'Tu memoria de trabajo empieza aquí'}</h2>
+      <p>${notes.length ? 'Prueba con otro título, etiqueta o término de búsqueda.' : 'Guarda procedimientos, contactos y cualquier información que necesites consultar después.'}</p>
+      ${notes.length ? '' : '<button type="button" class="btn primary empty-action" onclick="openModal()"><i class="ti ti-plus"></i> Crear primera nota</button>'}
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = `<div class="notes-grid">${[...filtered]
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.updated || b.created) - (a.updated || a.created))
+    .map(buildNoteCard).join('')}</div>`;
+}
+
+function buildNoteCard(note) {
+  const types = {
+    procedure: ['Procedimiento', 'ti-list-check', 'note-procedure'],
+    contact: ['Contacto', 'ti-address-book', 'note-contact'],
+    general: ['Nota general', 'ti-note', 'note-general']
+  };
+  const revealed = revealedNotes.get(note.id)?.data;
+  const view = revealed || note;
+  const isLocked = !!note.private && !revealed;
+  const [typeLabel, typeIcon, typeClass] = types[note.type] || types.general;
+  const tags = (view.tags || []).map(tag => `<span class="note-tag">${esc(tag)}</span>`).join('');
+  const contactMeta = note.type === 'contact' && !isLocked ? `<div class="note-contact-meta">
+    ${view.company ? `<span><i class="ti ti-building"></i>${esc(view.company)}</span>` : ''}
+    ${view.phone ? `<a href="tel:${escAttr(view.phone)}"><i class="ti ti-phone"></i>${esc(view.phone)}</a>` : ''}
+    ${view.email ? `<a href="mailto:${escAttr(view.email)}"><i class="ti ti-mail"></i>${esc(view.email)}</a>` : ''}
+  </div>` : '';
+  const updated = new Date(note.updated || note.created || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  return `<article class="note-card ${typeClass}${isLocked ? ' note-locked' : ''}">
+    <div class="note-card-top">
+      <span class="note-type"><i class="ti ${typeIcon}"></i>${typeLabel}</span>
+      <div class="crm-actions">
+        ${note.pinned ? '<span class="note-pinned" title="Nota fijada"><i class="ti ti-pin-filled"></i></span>' : ''}
+        ${note.private && revealed ? `<button type="button" class="icon-btn" onclick="hidePrivateNote('${note.id}')" aria-label="Ocultar nota"><i class="ti ti-eye-off"></i></button>` : ''}
+        <button type="button" class="icon-btn" onclick="${isLocked ? `requestPrivateNoteAccess('${note.id}','copy')` : `copyNoteContent('${note.id}')`}" aria-label="Copiar nota"><i class="ti ti-copy"></i></button>
+        <button type="button" class="icon-btn" onclick="${isLocked ? `requestPrivateNoteAccess('${note.id}','edit')` : `openModal('${note.id}')`}" aria-label="Editar nota"><i class="ti ti-edit"></i></button>
+        <button type="button" class="icon-btn danger" onclick="deleteEntry('${note.id}')" aria-label="Eliminar nota"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+    <h2>${isLocked ? '<i class="ti ti-lock note-title-lock"></i> Nota privada' : esc(view.title)}</h2>
+    ${contactMeta}
+    ${isLocked ? `<div class="note-private-placeholder">
+      <i class="ti ti-shield-lock"></i>
+      <p>El contenido está cifrado y oculto.</p>
+      <button type="button" class="btn" onclick="requestPrivateNoteAccess('${note.id}','reveal')"><i class="ti ti-lock-open"></i> Desbloquear</button>
+    </div>` : `<div class="note-content">${esc(view.content)}</div>`}
+    <footer class="note-footer"><div class="note-tags">${tags}</div><time>${updated}</time></footer>
+  </article>`;
+}
+
+async function copyNoteContent(id) {
+  const note = notes.find(item => item.id === id);
+  if (!note) return;
+  const data = revealedNotes.get(id)?.data || note;
+  if (note.private && !revealedNotes.has(id)) { requestPrivateNoteAccess(id, 'copy'); return; }
+  const text = [data.title, data.company, data.phone, data.email, data.content].filter(Boolean).join('\n');
+  await copyText(text, 'Contenido de la nota copiado');
+  resetInactivity();
+}
+
+function requestPrivateNoteAccess(id, action = 'reveal') {
+  const note = notes.find(item => item.id === id);
+  if (!note?.private || !note.secretData) return;
+  pendingPrivateNote = { id, action };
+  document.getElementById('fPrivateNotePassword').value = '';
+  document.getElementById('privateNoteError').classList.add('hidden');
+  document.getElementById('privateNoteOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('fPrivateNotePassword').focus(), 50);
+}
+
+async function unlockPrivateNote(event) {
+  event.preventDefault();
+  if (!pendingPrivateNote) return;
+  const note = notes.find(item => item.id === pendingPrivateNote.id);
+  const password = document.getElementById('fPrivateNotePassword').value;
+  const error = document.getElementById('privateNoteError');
+  try {
+    const data = JSON.parse(await decryptData(note.secretData, password));
+    const { id, action } = pendingPrivateNote;
+    revealPrivateNoteTemporarily(id, data);
+    closePrivateNoteAccess();
+    resetInactivity();
+    if (action === 'edit') openModal(id);
+    else if (action === 'copy') {
+      await copyNoteContent(id);
+      hidePrivateNote(id, false);
+    }
+    else render();
+  } catch {
+    error.textContent = 'La contraseña no es correcta.';
+    error.classList.remove('hidden');
+    document.getElementById('fPrivateNotePassword').select();
+  }
+}
+
+function revealPrivateNoteTemporarily(id, data) {
+  if (privateNoteTimers.has(id)) clearTimeout(privateNoteTimers.get(id));
+  revealedNotes.set(id, { data });
+  privateNoteTimers.set(id, setTimeout(() => hidePrivateNote(id), 60000));
+}
+
+function hidePrivateNote(id, shouldRender = true) {
+  if (privateNoteTimers.has(id)) clearTimeout(privateNoteTimers.get(id));
+  privateNoteTimers.delete(id);
+  revealedNotes.delete(id);
+  if (editingId === id) {
+    document.getElementById('modalOverlay').classList.add('hidden');
+    editingId = null;
+    showToast('La nota privada se ha ocultado');
+  }
+  if (shouldRender && currentTab === 'notes') render();
+}
+
+function clearAllPrivateNoteAccess() {
+  privateNoteTimers.forEach(timer => clearTimeout(timer));
+  privateNoteTimers.clear();
+  revealedNotes.clear();
+  pendingPrivateNote = null;
+  document.getElementById('privateNoteOverlay')?.classList.add('hidden');
+}
+
+function closePrivateNoteAccess() {
+  document.getElementById('privateNoteOverlay').classList.add('hidden');
+  document.getElementById('fPrivateNotePassword').value = '';
+  pendingPrivateNote = null;
+}
+
+function privateNoteOverlayClick(event) {
+  if (event.target === document.getElementById('privateNoteOverlay')) closePrivateNoteAccess();
+}
+
 function buildCard(c, isPrivate = false) {
   const passHidden = c.pass ? '•'.repeat(Math.min(c.pass.length, 10)) : '—';
   const border = isPrivate ? ' style="border-left:3px solid #a32d2d"' : '';
@@ -515,13 +791,16 @@ function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function escAttr(s) {
-  return String(s || '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ── Teclado ───────────────────────────────────────────────────
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape') {
+    closeModal();
+    closePrivateNoteAccess();
+  }
 });
 
 initApp();

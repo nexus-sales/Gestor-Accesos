@@ -2,7 +2,7 @@
 
 async function exportToPDF() {
   if (!vaultPassword) { showToast('Desbloquea la bóveda antes de exportar.'); return; }
-  if (!crms.length && !domains.length && !privateItems.length) {
+  if (!crms.length && !domains.length && !privateItems.length && !notes.length) {
     showToast('No hay datos para exportar.'); return;
   }
 
@@ -67,6 +67,29 @@ async function generatePDF(password) {
       ['Servicio/Título', 'Usuario/ID', 'Contraseña', 'Observaciones'],
       privateItems.map(p => [p.marca||'—', p.user||'—', p.pass||'—', p.obs||'—']),
       [252, 235, 235]
+    );
+  }
+
+  // Notas
+  if (notes.length > 0) {
+    if (y > 245) { doc.addPage(); y = 20; }
+    const noteRows = await Promise.all(notes.map(async n => {
+      let data = n;
+      if (n.private && n.secretData) {
+        data = JSON.parse(await decryptData(n.secretData, password));
+      }
+      return [
+        ({ procedure: 'Procedimiento', contact: 'Contacto', general: 'General' })[n.type] || 'General',
+        data.title || '—',
+        [data.company, data.phone, data.email].filter(Boolean).join(' · ') || '—',
+        (data.tags || []).join(', ') || '—',
+        data.content || '—'
+      ];
+    }));
+    y = addSection(doc, y, '4. Notas', [36, 107, 253],
+      ['Tipo', 'Título', 'Contacto', 'Etiquetas', 'Contenido'],
+      noteRows,
+      [239, 244, 255]
     );
   }
 
