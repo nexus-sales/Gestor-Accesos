@@ -63,9 +63,16 @@ async function generatePDF(password) {
   // Contraseñas privadas
   if (privateItems.length > 0) {
     if (y > 255) { doc.addPage(); y = 20; }
+    const privateRows = await Promise.all(privateItems.map(async item => {
+      const data = item.secretData
+        ? JSON.parse(await decryptData(item.secretData, password))
+        : item;
+      const category = ({ banking: 'Banca', email: 'Correo', social: 'Redes', work: 'Trabajo', api: 'API', ai: 'IA', shopping: 'Compras', other: 'Otros' })[item.category] || 'Otros';
+      return [category, data.marca || '—', data.user || '—', data.pass || '—', data.obs || '—'];
+    }));
     y = addSection(doc, y, '3. Contraseñas Privadas', [163, 45, 45],
-      ['Servicio/Título', 'Usuario/ID', 'Contraseña', 'Observaciones'],
-      privateItems.map(p => [p.marca||'—', p.user||'—', p.pass||'—', p.obs||'—']),
+      ['Categoría', 'Servicio/Título', 'Usuario/ID', 'Contraseña / API key', 'Observaciones'],
+      privateRows,
       [252, 235, 235]
     );
   }

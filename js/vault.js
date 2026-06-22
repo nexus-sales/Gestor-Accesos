@@ -25,6 +25,7 @@ async function loadVaultFromSupabase() {
   domains      = Array.isArray(payload.domains)      ? payload.domains      : [];
   privateItems = Array.isArray(payload.privateItems) ? payload.privateItems : [];
   notes        = Array.isArray(payload.notes)        ? payload.notes        : [];
+  if (await protectLegacyPrivateItems()) await saveVaultToSupabase();
 }
 
 async function saveVaultToSupabase() {
@@ -77,6 +78,8 @@ async function migrateLocalVault() {
     privateItems = Array.isArray(payload.privateItems) ? payload.privateItems : [];
     notes        = Array.isArray(payload.notes)        ? payload.notes        : [];
 
+    await protectLegacyPrivateItems();
+
     await saveVaultToSupabase();
 
     ['crm_manager_v2_vault_data','crm_manager_v1_private_verify',
@@ -89,4 +92,34 @@ async function migrateLocalVault() {
   } catch (err) {
     alert('Error al migrar datos locales: ' + err.message);
   }
+}
+
+async function protectLegacyPrivateItems() {
+  let changed = false;
+  privateItems = await Promise.all(privateItems.map(async item => {
+    if (item.secretData) return item;
+    changed = true;
+    const text = `${item.marca || ''} ${item.obs || ''}`.toLowerCase();
+    let category = 'other';
+    if (/openai|anthropic|gemini|mistral|groq|hugging|inteligencia artificial|\bia\b/.test(text)) category = 'ai';
+    else if (/api|token|github|gitlab|vercel|stripe|clave|\bkey\b/.test(text)) category = 'api';
+    else if (/banco|bank|n26|finanz|tarjeta|paypal/.test(text)) category = 'banking';
+    else if (/correo|email|gmail|outlook|mail/.test(text)) category = 'email';
+    else if (/facebook|instagram|linkedin|twitter|tiktok|red social/.test(text)) category = 'social';
+    else if (/trabajo|empresa|admin|gestión|laboral/.test(text)) category = 'work';
+    else if (/compra|tienda|amazon|suscrip/.test(text)) category = 'shopping';
+    return {
+      id: item.id || crypto.randomUUID(),
+      category,
+      secretData: await encryptData(JSON.stringify({
+        marca: item.marca || '',
+        user: item.user || '',
+        pass: item.pass || '',
+        obs: item.obs || ''
+      }), vaultPassword),
+      created: item.created || Date.now(),
+      updated: Date.now()
+    };
+  }));
+  return changed;
 }

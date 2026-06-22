@@ -5,9 +5,11 @@ let currentTab  = 'crms';
 let editingId   = null;
 let visiblePass = {};
 let lockTimer   = null;
-let pendingPrivateNote = null;
+let pendingPrivateAccess = null;
 const revealedNotes = new Map();
 const privateNoteTimers = new Map();
+const revealedPrivateItems = new Map();
+const privateItemTimers = new Map();
 
 const SECTOR_COLORS = ['sc-blue','sc-teal','sc-amber','sc-coral','sc-purple','sc-pink','sc-green','sc-red','sc-gray'];
 const sectorColorMap = {};
@@ -120,6 +122,11 @@ function openModal(id) {
     requestPrivateNoteAccess(id, 'edit');
     return;
   }
+  const requestedPrivateItem = currentTab === 'private' && id ? privateItems.find(item => item.id === id) : null;
+  if (requestedPrivateItem?.secretData && !revealedPrivateItems.has(id)) {
+    requestPrivateItemAccess(id, 'edit');
+    return;
+  }
   editingId = id || null;
   const titles = { crms: 'CRM', domains: 'Dominio', private: 'Contraseña Privada', notes: 'Nota' };
   document.getElementById('modalTitle').textContent =
@@ -132,12 +139,17 @@ function openModal(id) {
     const entry = items.find(x => x.id === id);
     if (entry) {
       const noteData = currentTab === 'notes' ? (revealedNotes.get(id)?.data || entry) : entry;
+      const entryData = currentTab === 'private' ? (revealedPrivateItems.get(id)?.data || entry) : entry;
       document.getElementById('fSector').value = entry.sector || '';
-      document.getElementById('fMarca').value  = currentTab === 'notes' ? (noteData.title || '') : (entry.marca || '');
+      document.getElementById('fMarca').value  = currentTab === 'notes' ? (noteData.title || '') : (entryData.marca || '');
       document.getElementById('fUrl').value    = entry.url || '';
-      document.getElementById('fUser').value   = entry.user || '';
-      document.getElementById('fPass').value   = entry.pass || '';
-      document.getElementById('fObs').value    = currentTab === 'notes' ? (noteData.content || '') : (entry.obs || '');
+      document.getElementById('fUser').value   = entryData.user || '';
+      document.getElementById('fPass').value   = entryData.pass || '';
+      document.getElementById('fObs').value    = currentTab === 'notes' ? (noteData.content || '') : (entryData.obs || '');
+      if (currentTab === 'private') {
+        document.getElementById('fPrivateCategory').value = entry.category || 'other';
+        configurePrivateCategory();
+      }
       if (currentTab === 'notes') {
         document.getElementById('fNoteType').value = entry.type || 'general';
         document.getElementById('fTags').value = Array.isArray(noteData.tags) ? noteData.tags.join(', ') : (noteData.tags || '');
@@ -157,6 +169,8 @@ function openModal(id) {
     document.getElementById('fNoteType').value = 'procedure';
     document.getElementById('fPinned').checked = false;
     document.getElementById('fNotePrivate').checked = false;
+    document.getElementById('fPrivateCategory').value = 'other';
+    configurePrivateCategory();
     configureNoteType();
   }
 
@@ -178,6 +192,9 @@ function closeModal() {
   if (closingId && notes.find(note => note.id === closingId)?.private && revealedNotes.has(closingId)) {
     hidePrivateNote(closingId, currentTab === 'notes');
   }
+  if (closingId && privateItems.find(item => item.id === closingId)?.secretData && revealedPrivateItems.has(closingId)) {
+    hidePrivateItem(closingId, currentTab === 'private');
+  }
 }
 
 function overlayClick(e) {
@@ -198,11 +215,15 @@ function configureModalFields() {
   const rowSectorMarca = document.getElementById('rowSectorMarca');
   const rowCredentials = document.getElementById('rowCredentials');
   const grpNoteFields = document.getElementById('grpNoteFields');
+  const grpPrivateCategory = document.getElementById('grpPrivateCategory');
   const lblObs = document.getElementById('lblObs');
+  const lblPass = document.getElementById('lblPass');
 
   rowCredentials.classList.remove('hidden');
   grpNoteFields.classList.add('hidden');
+  grpPrivateCategory.classList.add('hidden');
   lblObs.textContent = 'Observaciones';
+  lblPass.textContent = 'Contraseña';
   document.getElementById('fObs').placeholder = 'Notas, módulos, permisos…';
   rowSectorMarca.classList.toggle('single-field', ['private', 'notes'].includes(currentTab));
 
@@ -228,10 +249,12 @@ function configureModalFields() {
     fUser.placeholder   = 'admin@mi-web.com';
   } else if (currentTab === 'private') {
     grpSector.classList.add('hidden'); grpUrl.classList.add('hidden');
+    grpPrivateCategory.classList.remove('hidden');
     lblMarca.innerHTML  = 'Servicio / Título <span class="required">*</span>';
     fMarca.placeholder  = 'ej. Banco, Correo, App';
     lblUser.textContent = 'Usuario / Identificador';
     fUser.placeholder   = 'usuario123';
+    configurePrivateCategory();
   } else {
     grpSector.classList.add('hidden'); grpUrl.classList.add('hidden');
     rowCredentials.classList.add('hidden'); grpNoteFields.classList.remove('hidden');
@@ -240,6 +263,36 @@ function configureModalFields() {
     lblObs.innerHTML = 'Contenido <span class="required">*</span>';
     document.getElementById('fObs').placeholder = 'Escribe aquí el procedimiento, datos de contacto o información útil…';
     configureNoteType();
+  }
+}
+
+function configurePrivateCategory() {
+  if (currentTab !== 'private') return;
+  const category = document.getElementById('fPrivateCategory').value;
+  const lblMarca = document.getElementById('lblMarca');
+  const lblUser = document.getElementById('lblUser');
+  const lblPass = document.getElementById('lblPass');
+  const fMarca = document.getElementById('fMarca');
+  const fUser = document.getElementById('fUser');
+
+  if (category === 'api') {
+    lblMarca.innerHTML = 'Programa / Servicio <span class="required">*</span>';
+    lblUser.textContent = 'Proyecto / Identificador';
+    lblPass.textContent = 'API key / Token';
+    fMarca.placeholder = 'ej. GitHub, Stripe, Vercel';
+    fUser.placeholder = 'Proyecto, organización o ID';
+  } else if (category === 'ai') {
+    lblMarca.innerHTML = 'Proveedor / Modelo IA <span class="required">*</span>';
+    lblUser.textContent = 'Organización / Proyecto';
+    lblPass.textContent = 'API key / Token';
+    fMarca.placeholder = 'ej. OpenAI, Anthropic, Gemini';
+    fUser.placeholder = 'Organización o proyecto';
+  } else {
+    lblMarca.innerHTML = 'Servicio / Título <span class="required">*</span>';
+    lblUser.textContent = 'Usuario / Identificador';
+    lblPass.textContent = 'Contraseña';
+    fMarca.placeholder = 'ej. Banco, Correo, App';
+    fUser.placeholder = 'usuario123';
   }
 }
 
@@ -270,6 +323,7 @@ function updateDatalist() {
 
 async function saveEntry() {
   if (currentTab === 'notes') { await saveNoteEntry(); return; }
+  if (currentTab === 'private') { await savePrivateEntry(); return; }
   const marca = document.getElementById('fMarca').value.trim();
   if (!marca) { alert('El nombre del servicio es obligatorio.'); return; }
 
@@ -316,6 +370,39 @@ async function saveEntry() {
   closeModal();
   render();
   showToast(editingId ? 'Registro actualizado' : 'Registro guardado');
+}
+
+async function savePrivateEntry() {
+  const marca = document.getElementById('fMarca').value.trim();
+  if (!marca) { alert('El nombre del servicio es obligatorio.'); return; }
+
+  const previous = editingId ? privateItems.find(item => item.id === editingId) : null;
+  const entry = {
+    id: editingId || crypto.randomUUID(),
+    category: document.getElementById('fPrivateCategory').value,
+    secretData: await encryptData(JSON.stringify({
+      marca,
+      user: document.getElementById('fUser').value.trim(),
+      pass: document.getElementById('fPass').value.trim(),
+      obs: document.getElementById('fObs').value.trim()
+    }), vaultPassword),
+    created: previous?.created || Date.now(),
+    updated: Date.now()
+  };
+
+  if (previous) {
+    if (privateItemTimers.has(previous.id)) clearTimeout(privateItemTimers.get(previous.id));
+    privateItemTimers.delete(previous.id);
+    revealedPrivateItems.delete(previous.id);
+    privateItems[privateItems.findIndex(item => item.id === editingId)] = entry;
+  } else {
+    privateItems.push(entry);
+  }
+
+  await save();
+  closeModal();
+  render();
+  showToast(previous ? 'Ficha privada actualizada' : 'Ficha privada guardada');
 }
 
 async function saveNoteEntry() {
@@ -374,7 +461,7 @@ async function deleteEntry(id) {
   const col = getCurrentCollection();
   const entry = col.find(x => x.id === id);
   if (!entry) return;
-  const displayTitle = revealedNotes.get(id)?.data?.title || entry.title || entry.marca || 'Nota privada';
+  const displayTitle = revealedNotes.get(id)?.data?.title || revealedPrivateItems.get(id)?.data?.marca || entry.title || entry.marca || 'Ficha privada';
   if (!confirm(`¿Eliminar "${displayTitle}"?`)) return;
 
   const filtered = col.filter(x => x.id !== id);
@@ -561,12 +648,24 @@ function renderList(items, q, fs, singular, plural) {
 }
 
 function renderPrivate(q) {
+  const categories = {
+    banking: ['Banca y finanzas', 'ti-building-bank', 'private-banking'],
+    email: ['Correo', 'ti-mail', 'private-email'],
+    social: ['Redes sociales', 'ti-users', 'private-social'],
+    work: ['Trabajo', 'ti-briefcase', 'private-work'],
+    api: ['APIs y desarrollo', 'ti-code', 'private-api'],
+    ai: ['IA y modelos', 'ti-robot', 'private-ai'],
+    shopping: ['Compras', 'ti-shopping-bag', 'private-shopping'],
+    other: ['Otros', 'ti-lock', 'private-other']
+  };
   document.getElementById('statusBar').innerHTML =
-    `<span class="status-dot" style="background:#a32d2d"></span> ${privateItems.length} registro${privateItems.length !== 1 ? 's' : ''} privado${privateItems.length !== 1 ? 's' : ''} · Cifrado AES-256`;
+    `<span class="status-dot private-status-dot"></span> ${privateItems.length} ficha${privateItems.length !== 1 ? 's' : ''} privada${privateItems.length !== 1 ? 's' : ''} · Cifrado individual AES-256`;
 
-  const filtered = privateItems.filter(c =>
-    !q || [c.marca, c.user, c.obs].join(' ').toLowerCase().includes(q)
-  );
+  const filtered = privateItems.filter(item => {
+    const view = revealedPrivateItems.get(item.id)?.data || {};
+    const category = categories[item.category]?.[0] || categories.other[0];
+    return !q || [view.marca, view.user, view.obs, category, 'privada'].join(' ').toLowerCase().includes(q);
+  });
 
   const list = document.getElementById('list');
   if (filtered.length === 0) {
@@ -579,7 +678,36 @@ function renderPrivate(q) {
     return;
   }
 
-  list.innerHTML = `<div class="crm-grid">${filtered.map(c => buildCard(c, true)).join('')}</div>`;
+  list.innerHTML = `<div class="private-grid">${filtered.map(item => buildPrivateCard(item, categories)).join('')}</div>`;
+}
+
+function buildPrivateCard(item, categories) {
+  const revealed = revealedPrivateItems.get(item.id)?.data;
+  const isLocked = !!item.secretData && !revealed;
+  const view = revealed || item;
+  const [categoryLabel, categoryIcon, categoryClass] = categories[item.category] || categories.other;
+  const passHidden = view.pass ? '•'.repeat(Math.min(view.pass.length, 10)) : '—';
+
+  return `<article class="private-card ${categoryClass}${isLocked ? ' private-card-locked' : ''}">
+    <div class="private-card-head">
+      <span class="private-category"><i class="ti ${categoryIcon}"></i>${categoryLabel}</span>
+      <div class="crm-actions">
+        ${revealed ? `<button type="button" class="icon-btn" onclick="hidePrivateItem('${item.id}')" aria-label="Ocultar ficha"><i class="ti ti-eye-off"></i></button>` : ''}
+        <button type="button" class="icon-btn" onclick="${isLocked ? `requestPrivateItemAccess('${item.id}','edit')` : `openModal('${item.id}')`}" aria-label="Editar ficha"><i class="ti ti-edit"></i></button>
+        <button type="button" class="icon-btn danger" onclick="${isLocked ? `requestPrivateItemAccess('${item.id}','delete')` : `deleteEntry('${item.id}')`}" aria-label="Eliminar ficha"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+    <h2>${isLocked ? '<i class="ti ti-lock"></i> Ficha privada' : esc(view.marca)}</h2>
+    ${isLocked ? `<div class="private-card-placeholder">
+      <div class="private-lock-orb"><i class="ti ti-shield-lock"></i></div>
+      <p>Nombre, usuario, contraseña y observaciones están cifrados.</p>
+      <button type="button" class="btn private-unlock-btn" onclick="requestPrivateItemAccess('${item.id}','reveal')"><i class="ti ti-key"></i> Introducir clave</button>
+    </div>` : `<div class="private-card-data">
+      <div class="crm-field"><label>Usuario / ID</label><div class="crm-field-val"><span>${esc(view.user || '—')}</span>${view.user ? `<button type="button" class="copy-field" onclick="copyPrivateItemField('${item.id}','user','Usuario copiado')"><i class="ti ti-copy"></i></button>` : ''}</div></div>
+      <div class="crm-field"><label>${['api','ai'].includes(item.category) ? 'API key / Token' : 'Contraseña'}</label><div class="crm-field-val"><span id="private-pass-${item.id}">${passHidden}</span>${view.pass ? `<span class="crm-inline-actions"><button type="button" class="toggle-pass" id="privatePassBtn-${item.id}" onclick="togglePrivateItemPass('${item.id}')"><i class="ti ti-eye"></i></button><button type="button" class="copy-field" onclick="copyPrivateItemField('${item.id}','pass','${['api','ai'].includes(item.category) ? 'API key copiada' : 'Contraseña copiada'}')"><i class="ti ti-copy"></i></button></span>` : ''}</div></div>
+      ${view.obs ? `<div class="private-card-obs">${esc(view.obs)}</div>` : ''}
+    </div>`}
+  </article>`;
 }
 
 function renderNotes(q, typeFilter) {
@@ -667,7 +795,19 @@ async function copyNoteContent(id) {
 function requestPrivateNoteAccess(id, action = 'reveal') {
   const note = notes.find(item => item.id === id);
   if (!note?.private || !note.secretData) return;
-  pendingPrivateNote = { id, action };
+  pendingPrivateAccess = { kind: 'note', id, action };
+  openPrivateAccessDialog('Desbloquear nota privada');
+}
+
+function requestPrivateItemAccess(id, action = 'reveal') {
+  const item = privateItems.find(entry => entry.id === id);
+  if (!item?.secretData) return;
+  pendingPrivateAccess = { kind: 'item', id, action };
+  openPrivateAccessDialog('Desbloquear ficha privada');
+}
+
+function openPrivateAccessDialog(title) {
+  document.getElementById('privateNoteTitle').textContent = title;
   document.getElementById('fPrivateNotePassword').value = '';
   document.getElementById('privateNoteError').classList.add('hidden');
   document.getElementById('privateNoteOverlay').classList.remove('hidden');
@@ -676,17 +816,22 @@ function requestPrivateNoteAccess(id, action = 'reveal') {
 
 async function unlockPrivateNote(event) {
   event.preventDefault();
-  if (!pendingPrivateNote) return;
-  const note = notes.find(item => item.id === pendingPrivateNote.id);
+  if (!pendingPrivateAccess) return;
+  const { kind, id, action } = pendingPrivateAccess;
+  const entry = kind === 'note' ? notes.find(item => item.id === id) : privateItems.find(item => item.id === id);
   const password = document.getElementById('fPrivateNotePassword').value;
   const error = document.getElementById('privateNoteError');
   try {
-    const data = JSON.parse(await decryptData(note.secretData, password));
-    const { id, action } = pendingPrivateNote;
-    revealPrivateNoteTemporarily(id, data);
+    const data = JSON.parse(await decryptData(entry.secretData, password));
+    if (kind === 'note') revealPrivateNoteTemporarily(id, data);
+    else revealPrivateItemTemporarily(id, data);
     closePrivateNoteAccess();
     resetInactivity();
     if (action === 'edit') openModal(id);
+    else if (kind === 'item' && action === 'delete') {
+      await deleteEntry(id);
+      hidePrivateItem(id, false);
+    }
     else if (action === 'copy') {
       await copyNoteContent(id);
       hidePrivateNote(id, false);
@@ -697,6 +842,42 @@ async function unlockPrivateNote(event) {
     error.classList.remove('hidden');
     document.getElementById('fPrivateNotePassword').select();
   }
+}
+
+function revealPrivateItemTemporarily(id, data) {
+  if (privateItemTimers.has(id)) clearTimeout(privateItemTimers.get(id));
+  revealedPrivateItems.set(id, { data });
+  privateItemTimers.set(id, setTimeout(() => hidePrivateItem(id), 60000));
+}
+
+function hidePrivateItem(id, shouldRender = true) {
+  if (privateItemTimers.has(id)) clearTimeout(privateItemTimers.get(id));
+  privateItemTimers.delete(id);
+  revealedPrivateItems.delete(id);
+  if (editingId === id) {
+    document.getElementById('modalOverlay').classList.add('hidden');
+    editingId = null;
+    showToast('La ficha privada se ha ocultado');
+  }
+  if (shouldRender && currentTab === 'private') render();
+}
+
+async function copyPrivateItemField(id, field, message) {
+  const data = revealedPrivateItems.get(id)?.data;
+  if (!data) { requestPrivateItemAccess(id, 'reveal'); return; }
+  await copyText(data[field], message);
+  resetInactivity();
+}
+
+function togglePrivateItemPass(id) {
+  const data = revealedPrivateItems.get(id)?.data;
+  const element = document.getElementById('private-pass-' + id);
+  if (!data?.pass || !element) return;
+  const showing = element.textContent === data.pass;
+  element.textContent = showing ? '•'.repeat(Math.min(data.pass.length, 10)) : data.pass;
+  const button = document.getElementById('privatePassBtn-' + id);
+  if (button) button.innerHTML = showing ? '<i class="ti ti-eye"></i>' : '<i class="ti ti-eye-off"></i>';
+  resetInactivity();
 }
 
 function revealPrivateNoteTemporarily(id, data) {
@@ -721,14 +902,17 @@ function clearAllPrivateNoteAccess() {
   privateNoteTimers.forEach(timer => clearTimeout(timer));
   privateNoteTimers.clear();
   revealedNotes.clear();
-  pendingPrivateNote = null;
+  privateItemTimers.forEach(timer => clearTimeout(timer));
+  privateItemTimers.clear();
+  revealedPrivateItems.clear();
+  pendingPrivateAccess = null;
   document.getElementById('privateNoteOverlay')?.classList.add('hidden');
 }
 
 function closePrivateNoteAccess() {
   document.getElementById('privateNoteOverlay').classList.add('hidden');
   document.getElementById('fPrivateNotePassword').value = '';
-  pendingPrivateNote = null;
+  pendingPrivateAccess = null;
 }
 
 function privateNoteOverlayClick(event) {
