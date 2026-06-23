@@ -15,13 +15,13 @@ function b64ToBuf(b64) {
   return bytes.buffer;
 }
 
-async function deriveKey(password, salt) {
+async function deriveKey(password, salt, iterations = 200000) {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
   );
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -43,16 +43,30 @@ async function encryptData(plaintext, password) {
   return bufToB64(combined.buffer);
 }
 
+async function decryptDataWithIterations(ciphertextB64, password, iterations) {
+  const combined  = new Uint8Array(b64ToBuf(ciphertextB64));
+  const salt      = combined.slice(0, 16);
+  const iv        = combined.slice(16, 28);
+  const encrypted = combined.slice(28);
+  const key       = await deriveKey(password, salt, iterations);
+  const dec       = new TextDecoder();
+  const plain     = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
+  return dec.decode(plain);
+}
+
 async function decryptData(ciphertextB64, password) {
   try {
-    const combined  = new Uint8Array(b64ToBuf(ciphertextB64));
-    const salt      = combined.slice(0, 16);
-    const iv        = combined.slice(16, 28);
-    const encrypted = combined.slice(28);
-    const key       = await deriveKey(password, salt);
-    const dec       = new TextDecoder();
-    const plain     = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
-    return dec.decode(plain);
+    return await decryptDataWithIterations(ciphertextB64, password, 200000);
+  } catch {
+    throw new Error('Contraseña incorrecta o datos corruptos');
+  }
+}
+
+// Compatibilidad de lectura con la bóveda local anterior a la migración a Supabase.
+// Solo se usa para importar; todos los datos nuevos siguen cifrándose con 200.000 iteraciones.
+async function decryptLegacyLocalData(ciphertextB64, password) {
+  try {
+    return await decryptDataWithIterations(ciphertextB64, password, 100000);
   } catch {
     throw new Error('Contraseña incorrecta o datos corruptos');
   }

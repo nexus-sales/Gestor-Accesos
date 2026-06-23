@@ -100,11 +100,11 @@ async function migrateLocalVault() {
   try {
     const verToken = localStorage.getItem(LOCAL_VERIFY);
     if (verToken) {
-      const check = await decryptData(verToken, pass);
+      const check = await decryptLegacyLocalData(verToken, pass);
       if (check !== 'VERIFIED') { alert('Contraseña local incorrecta.'); return; }
     }
     const vaultEnc = localStorage.getItem(LOCAL_VAULT);
-    const plain    = await decryptData(vaultEnc, pass);
+    const plain    = await decryptLegacyLocalData(vaultEnc, pass);
     const payload  = JSON.parse(plain);
 
     crms         = Array.isArray(payload.crms)         ? payload.crms         : [];
