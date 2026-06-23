@@ -54,7 +54,7 @@
       <div id="view-login">
         <h2 class="auth-title">Bienvenido</h2>
         <p class="auth-sub">Accede a tu bóveda cifrada</p>
-        <form onsubmit="onLogin(event)">
+        <form id="form-login">
           <div class="form-group">
             <label for="lEmail">Email</label>
             <input type="email" id="lEmail" placeholder="tu@email.com" autocomplete="email" required />
@@ -63,7 +63,7 @@
             <label for="lPass">Contraseña de cuenta</label>
             <div class="pass-wrap">
               <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password" required />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('lPass','lPassIcon')">
+              <button type="button" id="lPass-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="lPassIcon"></i>
               </button>
             </div>
@@ -75,7 +75,7 @@
         </form>
         <div class="auth-alt">
           ¿Sin cuenta?
-          <button type="button" class="link-btn" onclick="showView('register')">Crear cuenta</button>
+          <button type="button" id="btn-show-register" class="link-btn">Crear cuenta</button>
         </div>
       </div>
 
@@ -83,7 +83,7 @@
       <div id="view-register" class="hidden">
         <h2 class="auth-title">Crear cuenta</h2>
         <p class="auth-sub">Bóveda cifrada, sincronizada y protegida con 2FA</p>
-        <form onsubmit="onRegister(event)">
+        <form id="form-register">
           <div class="form-group">
             <label for="rEmail">Email</label>
             <input type="email" id="rEmail" placeholder="tu@email.com" autocomplete="email" required />
@@ -93,7 +93,7 @@
             <div class="pass-wrap">
               <input type="password" id="rPass" placeholder="Elige una contraseña fuerte"
                 autocomplete="new-password" required minlength="8" />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('rPass','rPassIcon')">
+              <button type="button" id="rPass-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="rPassIcon"></i>
               </button>
             </div>
@@ -110,7 +110,7 @@
         </form>
         <div class="auth-alt">
           ¿Ya tienes cuenta?
-          <button type="button" class="link-btn" onclick="showView('login')">Iniciar sesión</button>
+          <button type="button" id="btn-show-login" class="link-btn">Iniciar sesión</button>
         </div>
       </div>
 
@@ -119,7 +119,7 @@
         <div class="auth-icon-wrap"><i class="ti ti-shield-check"></i></div>
         <h2 class="auth-title">Verificación 2FA</h2>
         <p class="auth-sub">Código de 6 dígitos de tu app de autenticación</p>
-        <form onsubmit="onMfaVerify(event)">
+        <form id="form-mfa-verify">
           <div class="form-group">
             <input type="text" id="mfaCode" placeholder="000000" maxlength="6"
               inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code"
@@ -131,7 +131,7 @@
           </button>
         </form>
         <div class="auth-alt">
-          <button type="button" class="link-btn" onclick="onLogout(true)">Cancelar sesión</button>
+          <button type="button" id="btn-cancel-mfa" class="link-btn">Cancelar sesión</button>
         </div>
       </div>
 
@@ -143,12 +143,12 @@
         <div id="qrBox" class="qr-box"></div>
         <div id="secretBox" class="secret-box hidden">
           <code id="secretCode"></code>
-          <button type="button" class="icon-btn" onclick="copySecret()" title="Copiar clave">
+          <button type="button" id="btn-copy-secret" class="icon-btn" title="Copiar clave">
             <i class="ti ti-copy"></i>
           </button>
         </div>
-        <button type="button" class="link-btn small" onclick="toggleSecret()">Mostrar clave manual</button>
-        <form onsubmit="onMfaEnroll(event)" class="enroll-form">
+        <button type="button" id="btn-toggle-secret" class="link-btn small">Mostrar clave manual</button>
+        <form id="form-mfa-enroll" class="enroll-form">
           <div class="form-group">
             <label for="enrollCode">Código de verificación</label>
             <input type="text" id="enrollCode" placeholder="000000" maxlength="6"
@@ -160,7 +160,7 @@
           </button>
         </form>
         <div class="auth-alt">
-          <button type="button" class="link-btn" onclick="onLogout(true)">Cancelar y cerrar sesión</button>
+          <button type="button" id="btn-cancel-enroll" class="link-btn">Cancelar y cerrar sesión</button>
         </div>
       </div>
 
@@ -169,12 +169,12 @@
         <div class="auth-icon-wrap"><i class="ti ti-lock"></i></div>
         <h2 class="auth-title">Bóveda bloqueada</h2>
         <p id="unlockEmail" class="auth-sub"></p>
-        <form onsubmit="onUnlock(event)">
+        <form id="form-unlock">
           <div class="form-group">
             <div class="pass-wrap">
               <input type="password" id="uPass" placeholder="Contraseña maestra"
                 autocomplete="current-password" required />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('uPass','uPassIcon')">
+              <button type="button" id="uPass-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="uPassIcon"></i>
               </button>
             </div>
@@ -185,7 +185,7 @@
           </button>
         </form>
         <div class="auth-alt">
-          <button type="button" class="link-btn" onclick="onLogout()">
+          <button type="button" id="btn-unlock-logout" class="link-btn">
             <i class="ti ti-logout"></i> Cerrar sesión
           </button>
         </div>
@@ -201,13 +201,13 @@
           La contraseña maestra <strong>NO se envía a ningún servidor</strong>.
           Si la pierdes, tu bóveda es <strong>IRRECUPERABLE</strong>.
         </div>
-        <form onsubmit="onCreateMaster(event)">
+        <form id="form-create-master">
           <div class="form-group">
             <label for="cmMasterPass">Contraseña maestra <small>(mín. 12 caracteres)</small></label>
             <div class="pass-wrap">
               <input type="password" id="cmMasterPass" placeholder="Elige una clave fuerte y única"
                 autocomplete="new-password" required minlength="12" />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('cmMasterPass','cmMasterPassIcon')">
+              <button type="button" id="cmMasterPass-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="cmMasterPassIcon"></i>
               </button>
             </div>
@@ -217,7 +217,7 @@
             <div class="pass-wrap">
               <input type="password" id="cmMasterPass2" placeholder="Repite la contraseña maestra"
                 autocomplete="new-password" required minlength="12" />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('cmMasterPass2','cmMasterPass2Icon')">
+              <button type="button" id="cmMasterPass2-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="cmMasterPass2Icon"></i>
               </button>
             </div>
@@ -239,13 +239,13 @@
           La contraseña maestra <strong>NO se envía a ningún servidor</strong>.
           Si la pierdes, tu bóveda es <strong>IRRECUPERABLE</strong>.
         </div>
-        <form onsubmit="onMigrate(event)">
+        <form id="form-migrate">
           <div class="form-group">
             <label for="migOldPass">Contraseña que usabas <strong>antes</strong> de esta actualización</label>
             <div class="pass-wrap">
               <input type="password" id="migOldPass" placeholder="Tu contraseña de cuenta anterior"
                 autocomplete="current-password" required />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('migOldPass','migOldPassIcon')">
+              <button type="button" id="migOldPass-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="migOldPassIcon"></i>
               </button>
             </div>
@@ -255,7 +255,7 @@
             <div class="pass-wrap">
               <input type="password" id="migMasterPass" placeholder="Elige una clave fuerte y única"
                 autocomplete="new-password" required minlength="12" />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('migMasterPass','migMasterPassIcon')">
+              <button type="button" id="migMasterPass-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="migMasterPassIcon"></i>
               </button>
             </div>
@@ -265,7 +265,7 @@
             <div class="pass-wrap">
               <input type="password" id="migMasterPass2" placeholder="Repite la contraseña maestra"
                 autocomplete="new-password" required minlength="12" />
-              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('migMasterPass2','migMasterPass2Icon')">
+              <button type="button" id="migMasterPass2-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
                 <i class="ti ti-eye" id="migMasterPass2Icon"></i>
               </button>
             </div>
@@ -276,7 +276,7 @@
           </button>
         </form>
         <div class="auth-alt">
-          <button type="button" class="link-btn" onclick="onLogout()">
+          <button type="button" id="btn-migrate-logout" class="link-btn">
             <i class="ti ti-logout"></i> Cerrar sesión
           </button>
         </div>
@@ -296,19 +296,19 @@
     </div>
 
     <nav class="sidebar-nav" role="tablist">
-      <button type="button" class="nav-item active" id="tab-crms" onclick="switchTab('crms')" role="tab" aria-selected="true">
+      <button type="button" class="nav-item active" id="tab-crms" role="tab" aria-selected="true">
         <i class="ti ti-database"></i>
         <span>CRMs</span>
       </button>
-      <button type="button" class="nav-item" id="tab-domains" onclick="switchTab('domains')" role="tab" aria-selected="false">
+      <button type="button" class="nav-item" id="tab-domains" role="tab" aria-selected="false">
         <i class="ti ti-world"></i>
         <span>Dominios</span>
       </button>
-      <button type="button" class="nav-item" id="tab-private" onclick="switchTab('private')" role="tab" aria-selected="false">
+      <button type="button" class="nav-item" id="tab-private" role="tab" aria-selected="false">
         <i class="ti ti-shield-lock"></i>
         <span>Privadas</span>
       </button>
-      <button type="button" class="nav-item" id="tab-notes" onclick="switchTab('notes')" role="tab" aria-selected="false">
+      <button type="button" class="nav-item" id="tab-notes" role="tab" aria-selected="false">
         <i class="ti ti-notebook"></i>
         <span>Notas</span>
       </button>
@@ -325,18 +325,18 @@
           <span class="sidebar-user-email" id="menuEmail"></span>
         </div>
         <div class="user-wrap">
-          <button type="button" class="sidebar-dots-btn" aria-label="Menú de usuario" onclick="toggleMenu()">
+          <button type="button" id="sidebar-menu-btn" class="sidebar-dots-btn" aria-label="Menú de usuario">
             <i class="ti ti-dots-vertical"></i>
           </button>
           <div id="userMenu" class="user-menu hidden">
-            <button type="button" class="menu-item" onclick="openTwoFASettings()">
+            <button type="button" class="menu-item" data-action="2fa">
               <i class="ti ti-shield"></i> Autenticación 2FA
             </button>
             <hr class="menu-sep" />
-            <button type="button" class="menu-item" onclick="lockVault()">
+            <button type="button" class="menu-item" data-action="lock">
               <i class="ti ti-lock"></i> Bloquear bóveda
             </button>
-            <button type="button" class="menu-item danger" onclick="onLogout()">
+            <button type="button" class="menu-item danger" data-action="logout">
               <i class="ti ti-logout"></i> Cerrar sesión
             </button>
           </div>
@@ -354,18 +354,18 @@
         <p class="page-description" id="pageDescription">Tus accesos de trabajo, ordenados y protegidos.</p>
       </div>
       <div class="mobile-user-wrap">
-        <button type="button" class="btn icon-only mobile-user-btn" aria-label="Menú de usuario" onclick="toggleMobileMenu()">
+        <button type="button" id="mobile-menu-btn" class="btn icon-only mobile-user-btn" aria-label="Menú de usuario">
           <i class="ti ti-user-circle"></i>
         </button>
         <div id="mobileUserMenu" class="user-menu mobile-user-menu hidden">
-          <button type="button" class="menu-item" onclick="openTwoFASettings()">
+          <button type="button" class="menu-item" data-action="2fa">
             <i class="ti ti-shield"></i> Autenticación 2FA
           </button>
           <hr class="menu-sep" />
-          <button type="button" class="menu-item" onclick="lockVault()">
+          <button type="button" class="menu-item" data-action="lock">
             <i class="ti ti-lock"></i> Bloquear bóveda
           </button>
-          <button type="button" class="menu-item danger" onclick="onLogout()">
+          <button type="button" class="menu-item danger" data-action="logout">
             <i class="ti ti-logout"></i> Cerrar sesión
           </button>
         </div>
@@ -373,15 +373,15 @@
       <div class="topbar-actions">
         <div class="search-wrap">
           <i class="ti ti-search"></i>
-          <input type="text" id="search" placeholder="Buscar..." oninput="render()" />
+          <input type="text" id="search" placeholder="Buscar..." />
         </div>
-        <select id="filterSector" aria-label="Filtrar por sector" onchange="render()">
+        <select id="filterSector" aria-label="Filtrar por sector">
           <option value="">Todos</option>
         </select>
-        <button type="button" class="btn icon-only" onclick="exportToPDF()" title="Exportar PDF" aria-label="Exportar PDF">
+        <button type="button" id="btn-export-pdf" class="btn icon-only" title="Exportar PDF" aria-label="Exportar PDF">
           <i class="ti ti-download"></i>
         </button>
-        <button type="button" class="btn primary" id="btnNew" onclick="openModal()">
+        <button type="button" class="btn primary" id="btnNew">
           <i class="ti ti-plus"></i> Nuevo CRM
         </button>
       </div>
@@ -396,11 +396,11 @@
 </div>
 
 <!-- Modal de entrada -->
-<div id="modalOverlay" class="overlay hidden" onclick="overlayClick(event)">
+<div id="modalOverlay" class="overlay hidden">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-header">
       <h2 id="modalTitle">Nuevo</h2>
-      <button type="button" class="icon-btn" onclick="closeModal()" aria-label="Cerrar">
+      <button type="button" id="modal-close-btn" class="icon-btn" aria-label="Cerrar">
         <i class="ti ti-x"></i>
       </button>
     </div>
@@ -417,7 +417,7 @@
     </div>
     <div class="form-group hidden" id="grpPrivateCategory">
       <label for="fPrivateCategory">Categoría</label>
-      <select id="fPrivateCategory" onchange="configurePrivateCategory()">
+      <select id="fPrivateCategory">
         <option value="banking">Banca y finanzas</option>
         <option value="email">Correo y comunicaciones</option>
         <option value="social">Redes sociales</option>
@@ -432,7 +432,7 @@
       <div class="form-row">
         <div class="form-group">
           <label for="fNoteType">Tipo</label>
-          <select id="fNoteType" onchange="configureNoteType()">
+          <select id="fNoteType">
             <option value="procedure">Procedimiento</option>
             <option value="contact">Contacto</option>
             <option value="general">Nota general</option>
@@ -479,15 +479,15 @@
         <label id="lblPass" for="fPass">Contraseña</label>
         <div class="pass-wrap">
           <input type="password" id="fPass" autocomplete="new-password" />
-          <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('fPass','fPassIcon')">
+          <button type="button" id="fPass-eye" class="pass-eye" aria-label="Mostrar u ocultar contraseña">
             <i class="ti ti-eye" id="fPassIcon"></i>
           </button>
         </div>
         <div class="field-actions">
-          <button type="button" class="mini-action" onclick="generatePassword()" title="Generar contraseña">
+          <button type="button" id="btn-generate-pass" class="mini-action" title="Generar contraseña">
             <i class="ti ti-sparkles"></i> Generar
           </button>
-          <button type="button" class="mini-action" onclick="copyFieldValue('fPass','Contraseña copiada')" title="Copiar contraseña">
+          <button type="button" id="btn-copy-pass" class="mini-action" title="Copiar contraseña">
             <i class="ti ti-copy"></i> Copiar
           </button>
         </div>
@@ -498,8 +498,8 @@
       <textarea id="fObs" placeholder="Notas, módulos, permisos…"></textarea>
     </div>
     <div class="modal-footer">
-      <button type="button" class="btn" onclick="closeModal()">Cancelar</button>
-      <button type="button" class="btn primary" onclick="saveEntry()">
+      <button type="button" id="modal-cancel-btn" class="btn">Cancelar</button>
+      <button type="button" id="modal-save-btn" class="btn primary">
         <i class="ti ti-device-floppy"></i> Guardar
       </button>
     </div>
@@ -507,8 +507,8 @@
 </div>
 
 <!-- Reautenticación para notas privadas -->
-<div id="privateNoteOverlay" class="overlay hidden" onclick="privateNoteOverlayClick(event)">
-  <form class="modal private-note-auth" onsubmit="unlockPrivateNote(event)" role="dialog" aria-modal="true" aria-labelledby="privateNoteTitle">
+<div id="privateNoteOverlay" class="overlay hidden">
+  <form id="form-private-note" class="modal private-note-auth" role="dialog" aria-modal="true" aria-labelledby="privateNoteTitle">
     <div class="auth-icon-wrap"><i class="ti ti-lock"></i></div>
     <div class="private-note-auth-copy">
       <h2 id="privateNoteTitle">Desbloquear nota privada</h2>
@@ -520,7 +520,7 @@
     </div>
     <div id="privateNoteError" class="auth-error hidden"></div>
     <div class="modal-footer">
-      <button type="button" class="btn" onclick="closePrivateNoteAccess()">Cancelar</button>
+      <button type="button" id="private-note-cancel-btn" class="btn">Cancelar</button>
       <button type="submit" class="btn primary"><i class="ti ti-lock-open"></i> Desbloquear</button>
     </div>
   </form>
@@ -529,19 +529,19 @@
 <div id="toast" class="toast"></div>
 
 <nav class="mobile-nav" aria-label="Navegación principal">
-  <button type="button" class="mobile-nav-item active" data-tab="crms" onclick="switchTab('crms')" aria-label="CRMs">
+  <button type="button" class="mobile-nav-item active" data-tab="crms" aria-label="CRMs">
     <i class="ti ti-database"></i>
     <span>CRMs</span>
   </button>
-  <button type="button" class="mobile-nav-item" data-tab="domains" onclick="switchTab('domains')" aria-label="Dominios">
+  <button type="button" class="mobile-nav-item" data-tab="domains" aria-label="Dominios">
     <i class="ti ti-world"></i>
     <span>Dominios</span>
   </button>
-  <button type="button" class="mobile-nav-item" data-tab="private" onclick="switchTab('private')" aria-label="Privadas">
+  <button type="button" class="mobile-nav-item" data-tab="private" aria-label="Privadas">
     <i class="ti ti-shield-lock"></i>
     <span>Privadas</span>
   </button>
-  <button type="button" class="mobile-nav-item" data-tab="notes" onclick="switchTab('notes')" aria-label="Notas">
+  <button type="button" class="mobile-nav-item" data-tab="notes" aria-label="Notas">
     <i class="ti ti-notebook"></i>
     <span>Notas</span>
   </button>
@@ -557,5 +557,6 @@
 <script src="js/auth.js"></script>
 <script src="js/app.js"></script>
 <script src="js/pdf.js"></script>
+<script src="js/events.js"></script>
 </body>
 </html>
