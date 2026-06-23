@@ -152,3 +152,32 @@ async function decryptLegacyLocalData(ciphertextB64, password) {
     throw new Error('Contraseña incorrecta o datos corruptos');
   }
 }
+
+// ── Cifrado/descifrado con DEK — formato k1 (sin KDF) ────────
+// La DEK (32 bytes aleatorios) ya es material de clave; no se deriva con Argon2.
+// Formato: "k1:" + base64(iv[12] | ciphertext)
+
+async function encryptWithKey(plaintext, dekBytes) {
+  const iv  = crypto.getRandomValues(new Uint8Array(12));
+  const key = await crypto.subtle.importKey('raw', dekBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const enc = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+  const combined = new Uint8Array(12 + ciphertext.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(ciphertext), 12);
+  return 'k1:' + bufToB64(combined.buffer);
+}
+
+async function decryptWithKey(blob, dekBytes) {
+  if (!blob.startsWith('k1:')) throw new Error('Formato de envelope no reconocido');
+  const combined = new Uint8Array(b64ToBuf(blob.slice(3)));
+  const iv        = combined.slice(0, 12);
+  const encrypted = combined.slice(12);
+  const key = await crypto.subtle.importKey('raw', dekBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  try {
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted);
+    return new TextDecoder().decode(plain);
+  } catch {
+    throw new Error('Descifrado fallido: clave incorrecta o datos corruptos');
+  }
+}

@@ -1,7 +1,9 @@
 // Autenticación: login, registro, 2FA (TOTP), desbloqueo de bóveda
 
 let currentUser    = null;
-let vaultPassword  = null;  // Clave AES — solo en memoria, nunca en servidor
+let vaultPassword  = null;  // DEPRECATED — sustituido por vaultKey (DEK)
+let vaultKey       = null;  // DEK (32 bytes) — clave de datos real; solo en memoria
+let cachedHasLegacyMaster = false;
 let pendingFactorId   = null;
 let pendingChallengeId = null;
 let enrollingFactorId = null;
@@ -199,18 +201,33 @@ async function onUnlock(e) {
 
   try {
     if (!(await ensureMfaSatisfied())) return;
-    if (!(await checkMasterVerifier(pass))) {
-      showMsg('uError', 'Contraseña maestra incorrecta.');
-      document.getElementById('uPass').value = '';
-      return;
+
+    if (cachedWrappedDek) {
+      // Path 1: DEK envuelta — solo un descifrado AES-GCM
+      try {
+        vaultKey = await unwrapDek(cachedWrappedDek, pass);
+      } catch {
+        showMsg('uError', 'Contraseña maestra incorrecta.');
+        document.getElementById('uPass').value = '';
+        return;
+      }
+    } else {
+      // Path 2: vault v2 + master_verifier — migración transparente a DEK
+      if (!(await checkMasterVerifier(pass))) {
+        showMsg('uError', 'Contraseña maestra incorrecta.');
+        document.getElementById('uPass').value = '';
+        return;
+      }
+      showToast('Actualizando bóveda…');
+      await migrateToDek(pass); // atómico; setea vaultKey + vars globales
     }
-    vaultPassword = pass;
+
     await loadVaultFromSupabase();
     showApp();
     resetInactivity();
-    migrateLocalVault();
+    migrateLocalVault(pass);
   } catch (err) {
-    vaultPassword = null;
+    vaultKey = null;
     showMsg('uError', err.message);
     document.getElementById('uPass').value = '';
   } finally {
@@ -222,10 +239,15 @@ async function onUnlock(e) {
 
 async function initUnlockFlow() {
   document.getElementById('unlockEmail').textContent = currentUser?.email || '';
-  const { verifier, hasVault } = await fetchMasterVerifier();
-  if (verifier)         { showAuth('unlock'); }
-  else if (hasVault)    { showAuth('migrate'); }
-  else                  { showAuth('create-master'); }
+  const { wrappedDek, hasVault, hasLegacyMaster } = await fetchMasterVerifier();
+  cachedHasLegacyMaster = hasLegacyMaster;
+  // Path 1: wrapped_dek → unlock normal
+  // Path 2: sin wrapped_dek + vault + master_verifier → unlock (migración transparente)
+  // Path 3: sin wrapped_dek + vault + sin master_verifier → migrate
+  // Path 4: sin vault → create-master
+  if (wrappedDek || (hasVault && hasLegacyMaster)) { showAuth('unlock'); }
+  else if (hasVault)                                { showAuth('migrate'); }
+  else                                              { showAuth('create-master'); }
 }
 
 // ── Crear contraseña maestra (usuario nuevo) ──────────────────
@@ -240,14 +262,15 @@ async function onCreateMaster(e) {
 
   setBtnLoading('cmBtn', true);
   try {
-    vaultPassword = pass1;
+    const dek = crypto.getRandomValues(new Uint8Array(32));
+    vaultKey = dek;
     crms = []; domains = []; privateItems = []; notes = [];
-    await saveVaultToSupabase();
+    await createVaultInSupabase(dek, pass1);
     showApp();
     resetInactivity();
-    migrateLocalVault();
+    migrateLocalVault(pass1);
   } catch (err) {
-    vaultPassword = null;
+    vaultKey = null;
     showMsg('cmError', 'Error al crear la bóveda: ' + err.message);
   } finally {
     setBtnLoading('cmBtn', false);
@@ -267,11 +290,10 @@ async function onMigrate(e) {
 
   setBtnLoading('migBtn', true);
   try {
-    await migrateToMasterPassword(oldPass, pass1);
-    vaultPassword = pass1;
+    await migrateToMasterPasswordAndDek(oldPass, pass1); // atómico; setea vaultKey + vars globales
     showApp();
     resetInactivity();
-    migrateLocalVault();
+    migrateLocalVault(pass1);
   } catch (err) {
     showMsg('migError', err.message);
   } finally {
@@ -301,6 +323,7 @@ function clearVaultData() {
   clearAllPrivateNoteAccess();
   crms = []; domains = []; privateItems = []; notes = [];
   vaultPassword = null;
+  vaultKey = null;
   visiblePass = {};
   if (lockTimer) clearTimeout(lockTimer);
 }

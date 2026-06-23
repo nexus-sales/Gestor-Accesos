@@ -51,7 +51,7 @@ function resetInactivity() {
 }
 
 ['mousedown','keypress','scroll','touchstart'].forEach(ev =>
-  document.addEventListener(ev, () => { if (vaultPassword) resetInactivity(); }, true)
+  document.addEventListener(ev, () => { if (vaultKey) resetInactivity(); }, true)
 );
 
 // ── Colores de sector ────────────────────────────────────────
@@ -385,12 +385,12 @@ async function savePrivateEntry() {
   const entry = {
     id: editingId || crypto.randomUUID(),
     category: document.getElementById('fPrivateCategory').value,
-    secretData: await encryptData(JSON.stringify({
+    secretData: await encryptWithKey(JSON.stringify({
       marca,
       user: document.getElementById('fUser').value.trim(),
       pass: document.getElementById('fPass').value.trim(),
       obs: document.getElementById('fObs').value.trim()
-    }), vaultPassword),
+    }), vaultKey),
     created: previous?.created || Date.now(),
     updated: Date.now()
   };
@@ -443,7 +443,7 @@ async function saveNoteEntry() {
   };
 
   if (isPrivate) {
-    entry.secretData = await encryptData(JSON.stringify(secretFields), vaultPassword);
+    entry.secretData = await encryptWithKey(JSON.stringify(secretFields), vaultKey);
   } else {
     Object.assign(entry, secretFields);
   }
@@ -823,29 +823,48 @@ async function unlockPrivateNote(event) {
   event.preventDefault();
   if (!pendingPrivateAccess) return;
   const { kind, id, action } = pendingPrivateAccess;
-  const entry = kind === 'note' ? notes.find(item => item.id === id) : privateItems.find(item => item.id === id);
   const password = document.getElementById('fPrivateNotePassword').value;
   const error = document.getElementById('privateNoteError');
+
+  // 1) Verificar identidad — el fallo aquí siempre es contraseña incorrecta
+  try { await unwrapDek(cachedWrappedDek, password); }
+  catch {
+    error.textContent = 'La contraseña no es correcta.';
+    error.classList.remove('hidden');
+    document.getElementById('fPrivateNotePassword').select();
+    return;
+  }
+
+  // 2) Rama PDF — sale antes de tocar entry
+  if (kind === 'pdf') {
+    closePrivateNoteAccess();
+    try {
+      showToast('Generando PDF cifrado…');
+      await generatePDF(vaultKey, password);
+      showToast('PDF descargado correctamente.');
+    } catch (e) {
+      alert('Error al generar el PDF: ' + e.message);
+    }
+    return;
+  }
+
+  // 3) Descifrado de nota / ficha privada con la DEK
+  const entry = kind === 'note'
+    ? notes.find(i => i.id === id)
+    : privateItems.find(i => i.id === id);
   try {
-    const data = JSON.parse(await decryptData(entry.secretData, password));
+    const data = JSON.parse(await decryptWithKey(entry.secretData, vaultKey));
     if (kind === 'note') revealPrivateNoteTemporarily(id, data);
     else revealPrivateItemTemporarily(id, data);
     closePrivateNoteAccess();
     resetInactivity();
     if (action === 'edit') openModal(id);
-    else if (kind === 'item' && action === 'delete') {
-      await deleteEntry(id);
-      hidePrivateItem(id, false);
-    }
-    else if (action === 'copy') {
-      await copyNoteContent(id);
-      hidePrivateNote(id, false);
-    }
+    else if (kind === 'item' && action === 'delete') { await deleteEntry(id); hidePrivateItem(id, false); }
+    else if (action === 'copy') { await copyNoteContent(id); hidePrivateNote(id, false); }
     else render();
   } catch {
-    error.textContent = 'La contraseña no es correcta.';
+    error.textContent = 'No se pudo descifrar la ficha (datos corruptos).';
     error.classList.remove('hidden');
-    document.getElementById('fPrivateNotePassword').select();
   }
 }
 

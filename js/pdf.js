@@ -1,28 +1,21 @@
 // Exportación a PDF cifrado con la contraseña maestra del usuario
 
 async function exportToPDF() {
-  if (!vaultPassword) { showToast('Desbloquea la bóveda antes de exportar.'); return; }
+  if (!vaultKey) { showToast('Desbloquea la bóveda antes de exportar.'); return; }
   if (!crms.length && !domains.length && !privateItems.length && !notes.length) {
     showToast('No hay datos para exportar.'); return;
   }
-
-  showToast('Generando PDF cifrado…');
-
-  try {
-    await generatePDF(vaultPassword);
-    showToast('PDF descargado correctamente.');
-  } catch (e) {
-    alert('Error al generar el PDF: ' + e.message);
-  }
+  pendingPrivateAccess = { kind: 'pdf' };
+  openPrivateAccessDialog('Exportar PDF cifrado');
 }
 
-async function generatePDF(password) {
+async function generatePDF(dek, pdfPassword) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({
     orientation: 'p', unit: 'mm', format: 'a4',
     encryption: {
-      userPassword: password,
-      ownerPassword: password,
+      userPassword: pdfPassword,
+      ownerPassword: pdfPassword,
       userPermissions: ['print', 'copy']
     }
   });
@@ -65,7 +58,7 @@ async function generatePDF(password) {
     if (y > 255) { doc.addPage(); y = 20; }
     const privateRows = await Promise.all(privateItems.map(async item => {
       const data = item.secretData
-        ? JSON.parse(await decryptData(item.secretData, password))
+        ? JSON.parse(await decryptWithKey(item.secretData, dek))
         : item;
       const category = ({ banking: 'Banca', email: 'Correo', social: 'Redes', work: 'Trabajo', api: 'API', ai: 'IA', shopping: 'Compras', other: 'Otros' })[item.category] || 'Otros';
       return [category, data.marca || '—', data.user || '—', data.pass || '—', data.obs || '—'];
@@ -83,7 +76,7 @@ async function generatePDF(password) {
     const noteRows = await Promise.all(notes.map(async n => {
       let data = n;
       if (n.private && n.secretData) {
-        data = JSON.parse(await decryptData(n.secretData, password));
+        data = JSON.parse(await decryptWithKey(n.secretData, dek));
       }
       return [
         ({ procedure: 'Procedimiento', contact: 'Contacto', general: 'General' })[n.type] || 'General',
