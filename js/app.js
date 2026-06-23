@@ -13,7 +13,6 @@ const privateItemTimers = new Map();
 
 const SECTOR_COLORS = ['sc-blue','sc-teal','sc-amber','sc-coral','sc-purple','sc-pink','sc-green','sc-red','sc-gray'];
 const sectorColorMap = {};
-let colorIdx = 0;
 
 // ── Guardar ──────────────────────────────────────────────────
 
@@ -58,10 +57,16 @@ function resetInactivity() {
 // ── Colores de sector ────────────────────────────────────────
 
 function getSectorColor(sector) {
-  if (!sectorColorMap[sector]) {
-    sectorColorMap[sector] = SECTOR_COLORS[colorIdx++ % SECTOR_COLORS.length];
+  const key = String(sector || '').trim().toLocaleLowerCase('es');
+  if (!key) return 'sc-gray';
+  if (!sectorColorMap[key]) {
+    let hash = 2166136261;
+    for (let i = 0; i < key.length; i++) {
+      hash = Math.imul(hash ^ key.charCodeAt(i), 16777619);
+    }
+    sectorColorMap[key] = SECTOR_COLORS[(hash >>> 0) % SECTOR_COLORS.length];
   }
-  return sectorColorMap[sector];
+  return sectorColorMap[key];
 }
 
 function buildColorMap() {
@@ -922,9 +927,10 @@ function privateNoteOverlayClick(event) {
 function buildCard(c, isPrivate = false) {
   const passHidden = c.pass ? '•'.repeat(Math.min(c.pass.length, 10)) : '—';
   const border = isPrivate ? ' style="border-left:3px solid #a32d2d"' : '';
+  const accentClass = isPrivate ? '' : getSectorColor(c.sector);
   const normalizedUrl = normalizeUrl(c.url);
   const url = normalizedUrl && isAllowedUrl(normalizedUrl) ? normalizedUrl : '';
-  return `<article class="crm-card"${border}>
+  return `<article class="crm-card ${accentClass}"${border}>
     <div class="crm-card-header">
       <span class="crm-brand">${esc(c.marca)}</span>
       <div class="crm-actions">

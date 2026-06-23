@@ -430,15 +430,27 @@ body {
   gap: 12px;
 }
 .crm-card {
-  background: var(--bg);
-  border: 0.5px solid var(--border);
+  --card-accent: #64748b;
+  --card-soft: #f8fafc;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--bg) 56%, var(--card-soft));
+  border: 1px solid color-mix(in srgb, var(--card-accent) 16%, var(--border));
   border-radius: var(--r-xl);
   padding: 1.1rem 1.2rem;
   box-shadow: var(--sh-sm);
-  transition: border-color .15s, box-shadow .15s;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.crm-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--card-accent);
 }
 .crm-card:hover {
-  border-color: var(--border-h);
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--card-accent) 30%, var(--border-h));
   box-shadow: var(--sh-md);
 }
 
@@ -753,26 +765,27 @@ body {
 }
 
 /* ── Sector colors ───────────────────────────────────────── */
-.sc-blue   { background: rgba(219,234,254,.85); color: #1e40af; }
-.sc-teal   { background: rgba(204,251,241,.85); color: #065f46; }
-.sc-amber  { background: rgba(254,243,199,.85); color: #92400e; }
-.sc-coral  { background: rgba(254,226,226,.85); color: #991b1b; }
-.sc-purple { background: rgba(237,233,254,.85); color: #4c1d95; }
-.sc-pink   { background: rgba(252,231,243,.85); color: #831843; }
-.sc-green  { background: rgba(220,252,231,.85); color: #14532d; }
-.sc-red    { background: rgba(254,226,226,.85); color: #7f1d1d; }
-.sc-gray   { background: rgba(243,244,246,.85); color: #374151; }
+.sc-blue   { --card-accent: #2563eb; --card-soft: #eff6ff; --label-bg: rgba(219,234,254,.85); --label-text: #1e40af; }
+.sc-teal   { --card-accent: #0d9488; --card-soft: #f0fdfa; --label-bg: rgba(204,251,241,.85); --label-text: #065f46; }
+.sc-amber  { --card-accent: #d97706; --card-soft: #fffbeb; --label-bg: rgba(254,243,199,.85); --label-text: #92400e; }
+.sc-coral  { --card-accent: #e05252; --card-soft: #fff5f5; --label-bg: rgba(254,226,226,.85); --label-text: #991b1b; }
+.sc-purple { --card-accent: #7c3aed; --card-soft: #f5f3ff; --label-bg: rgba(237,233,254,.85); --label-text: #4c1d95; }
+.sc-pink   { --card-accent: #db2777; --card-soft: #fdf2f8; --label-bg: rgba(252,231,243,.85); --label-text: #831843; }
+.sc-green  { --card-accent: #16a34a; --card-soft: #f0fdf4; --label-bg: rgba(220,252,231,.85); --label-text: #14532d; }
+.sc-red    { --card-accent: #dc2626; --card-soft: #fef2f2; --label-bg: rgba(254,226,226,.85); --label-text: #7f1d1d; }
+.sc-gray   { --card-accent: #64748b; --card-soft: #f8fafc; --label-bg: rgba(243,244,246,.85); --label-text: #374151; }
+.sector-label[class*="sc-"] { background: var(--label-bg); color: var(--label-text); }
 
 @media (prefers-color-scheme: dark) {
-  .sc-blue   { background: rgba(30,64,175,.2);  color: #93c5fd; }
-  .sc-teal   { background: rgba(6,95,70,.2);    color: #6ee7b7; }
-  .sc-amber  { background: rgba(146,64,14,.2);  color: #fcd34d; }
-  .sc-coral  { background: rgba(153,27,27,.2);  color: #fca5a5; }
-  .sc-purple { background: rgba(76,29,149,.2);  color: #c4b5fd; }
-  .sc-pink   { background: rgba(131,24,67,.2);  color: #f9a8d4; }
-  .sc-green  { background: rgba(20,83,45,.2);   color: #86efac; }
-  .sc-red    { background: rgba(127,29,29,.2);  color: #fca5a5; }
-  .sc-gray   { background: rgba(55,65,81,.2);   color: #d1d5db; }
+  .sc-blue   { --card-soft: rgba(30,64,175,.13); --label-bg: rgba(30,64,175,.2); --label-text: #93c5fd; }
+  .sc-teal   { --card-soft: rgba(6,95,70,.13); --label-bg: rgba(6,95,70,.2); --label-text: #6ee7b7; }
+  .sc-amber  { --card-soft: rgba(146,64,14,.13); --label-bg: rgba(146,64,14,.2); --label-text: #fcd34d; }
+  .sc-coral  { --card-soft: rgba(153,27,27,.13); --label-bg: rgba(153,27,27,.2); --label-text: #fca5a5; }
+  .sc-purple { --card-soft: rgba(76,29,149,.13); --label-bg: rgba(76,29,149,.2); --label-text: #c4b5fd; }
+  .sc-pink   { --card-soft: rgba(131,24,67,.13); --label-bg: rgba(131,24,67,.2); --label-text: #f9a8d4; }
+  .sc-green  { --card-soft: rgba(20,83,45,.13); --label-bg: rgba(20,83,45,.2); --label-text: #86efac; }
+  .sc-red    { --card-soft: rgba(127,29,29,.13); --label-bg: rgba(127,29,29,.2); --label-text: #fca5a5; }
+  .sc-gray   { --card-soft: rgba(55,65,81,.13); --label-bg: rgba(55,65,81,.2); --label-text: #d1d5db; }
 }
 
 /* ── Responsive ──────────────────────────────────────────── */
