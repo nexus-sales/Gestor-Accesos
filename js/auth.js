@@ -32,7 +32,7 @@ function showApp() {
 }
 
 function showView(name) {
-  ['login','register','mfa-verify','mfa-enroll','unlock'].forEach(v => {
+  ['login','register','mfa-verify','mfa-enroll','unlock','create-master','migrate'].forEach(v => {
     document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
   });
   const view = document.getElementById('view-' + name);
@@ -64,8 +64,7 @@ async function initApp() {
       return;
     }
 
-    document.getElementById('unlockEmail').textContent = currentUser.email;
-    showAuth('unlock');
+    await initUnlockFlow();
   } catch {
     showAuth('login');
   }
@@ -85,8 +84,7 @@ async function onLogin(e) {
     const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
 
-    currentUser   = data.user;
-    vaultPassword = pass;
+    currentUser = data.user;
 
     const factors = await getVerifiedTotpFactors();
     if (factors.length === 0) {
@@ -96,11 +94,10 @@ async function onLogin(e) {
       await beginMfaChallenge(factors);
       showAuth('mfa-verify');
     } else {
-      await loadAndShowApp();
+      await initUnlockFlow();
     }
   } catch (err) {
     showMsg('lError', authError(err.message));
-    vaultPassword = null;
   } finally {
     setBtnLoading('lBtn', false);
   }
@@ -128,8 +125,7 @@ async function onRegister(e) {
       return;
     }
 
-    currentUser   = data.user;
-    vaultPassword = pass1;
+    currentUser = data.user;
 
     await startEnrollment();
     showAuth('mfa-enroll');
@@ -157,13 +153,7 @@ async function onMfaVerify(e) {
     });
     if (error) throw error;
     await requireAal2Session();
-
-    if (vaultPassword) {
-      await loadAndShowApp();
-    } else {
-      document.getElementById('unlockEmail').textContent = currentUser?.email || '';
-      showAuth('unlock');
-    }
+    await initUnlockFlow();
   } catch (err) {
     showMsg('mfaError', err.message || 'Código incorrecto. Inténtalo de nuevo.');
     document.getElementById('mfaCode').value = '';
@@ -191,8 +181,7 @@ async function onMfaEnroll(e) {
     await requireAal2Session();
 
     showToast('2FA activado correctamente');
-    await saveVaultToSupabase();
-    await loadAndShowApp();
+    await initUnlockFlow();
   } catch (err) {
     showMsg('enrollError', err.message || 'Código incorrecto. Verifica tu app de autenticación.');
     document.getElementById('enrollCode').value = '';
@@ -209,17 +198,84 @@ async function onUnlock(e) {
   hideMsg('uError');
 
   try {
-    vaultPassword = pass;
     if (!(await ensureMfaSatisfied())) return;
+    if (!(await checkMasterVerifier(pass))) {
+      showMsg('uError', 'Contraseña maestra incorrecta.');
+      document.getElementById('uPass').value = '';
+      return;
+    }
+    vaultPassword = pass;
     await loadVaultFromSupabase();
     showApp();
     resetInactivity();
+    migrateLocalVault();
   } catch (err) {
     vaultPassword = null;
     showMsg('uError', err.message);
     document.getElementById('uPass').value = '';
   } finally {
     setBtnLoading('uBtn', false);
+  }
+}
+
+// ── Flujo de unlock tras 2FA ──────────────────────────────────
+
+async function initUnlockFlow() {
+  document.getElementById('unlockEmail').textContent = currentUser?.email || '';
+  const { verifier, hasVault } = await fetchMasterVerifier();
+  if (verifier)         { showAuth('unlock'); }
+  else if (hasVault)    { showAuth('migrate'); }
+  else                  { showAuth('create-master'); }
+}
+
+// ── Crear contraseña maestra (usuario nuevo) ──────────────────
+
+async function onCreateMaster(e) {
+  e.preventDefault();
+  const pass1 = document.getElementById('cmMasterPass').value;
+  const pass2 = document.getElementById('cmMasterPass2').value;
+
+  hideMsg('cmError');
+  if (pass1 !== pass2) { showMsg('cmError', 'Las contraseñas maestras no coinciden.'); return; }
+
+  setBtnLoading('cmBtn', true);
+  try {
+    vaultPassword = pass1;
+    crms = []; domains = []; privateItems = []; notes = [];
+    await saveVaultToSupabase();
+    showApp();
+    resetInactivity();
+    migrateLocalVault();
+  } catch (err) {
+    vaultPassword = null;
+    showMsg('cmError', 'Error al crear la bóveda: ' + err.message);
+  } finally {
+    setBtnLoading('cmBtn', false);
+  }
+}
+
+// ── Migrar bóveda legacy ──────────────────────────────────────
+
+async function onMigrate(e) {
+  e.preventDefault();
+  const oldPass  = document.getElementById('migOldPass').value;
+  const pass1    = document.getElementById('migMasterPass').value;
+  const pass2    = document.getElementById('migMasterPass2').value;
+
+  hideMsg('migError');
+  if (pass1 !== pass2) { showMsg('migError', 'Las contraseñas maestras no coinciden.'); return; }
+
+  setBtnLoading('migBtn', true);
+  try {
+    await migrateToMasterPassword(oldPass, pass1);
+    vaultPassword = pass1;
+    showApp();
+    resetInactivity();
+    migrateLocalVault();
+  } catch (err) {
+    showMsg('migError', err.message);
+  } finally {
+    setBtnLoading('migBtn', false);
   }
 }
 
@@ -296,20 +352,6 @@ async function openTwoFASettings() {
 }
 
 // ── Helpers internos ─────────────────────────────────────────
-
-async function loadAndShowApp() {
-  showLoading();
-  try {
-    if (!(await ensureMfaSatisfied())) return;
-    await loadVaultFromSupabase();
-    showApp();
-    resetInactivity();
-    migrateLocalVault();
-  } catch (err) {
-    showMsg('uError', 'Error al cargar la bóveda: ' + err.message);
-    showAuth('unlock');
-  }
-}
 
 async function ensureMfaSatisfied() {
   const factors = await getVerifiedTotpFactors();

@@ -39,7 +39,7 @@
             <input type="email" id="lEmail" placeholder="tu@email.com" autocomplete="email" required />
           </div>
           <div class="form-group">
-            <label for="lPass">Contraseña maestra</label>
+            <label for="lPass">Contraseña de cuenta</label>
             <div class="pass-wrap">
               <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password" required />
               <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('lPass','lPassIcon')">
@@ -68,7 +68,7 @@
             <input type="email" id="rEmail" placeholder="tu@email.com" autocomplete="email" required />
           </div>
           <div class="form-group">
-            <label for="rPass">Contraseña maestra <small>(mín. 8 caracteres)</small></label>
+            <label for="rPass">Contraseña de cuenta <small>(mín. 8 caracteres)</small></label>
             <div class="pass-wrap">
               <input type="password" id="rPass" placeholder="Elige una contraseña fuerte"
                 autocomplete="new-password" required minlength="8" />
@@ -161,6 +161,97 @@
           <div id="uError" class="auth-error hidden"></div>
           <button type="submit" id="uBtn" class="btn primary auth-btn">
             <i class="ti ti-lock-open"></i> Desbloquear
+          </button>
+        </form>
+        <div class="auth-alt">
+          <button type="button" class="link-btn" onclick="onLogout()">
+            <i class="ti ti-logout"></i> Cerrar sesión
+          </button>
+        </div>
+      </div>
+
+      <!-- Crear contraseña maestra (usuario nuevo, sin bóveda aún) -->
+      <div id="view-create-master" class="hidden">
+        <div class="auth-icon-wrap"><i class="ti ti-key"></i></div>
+        <h2 class="auth-title">Crear contraseña maestra</h2>
+        <p class="auth-sub">Protege tu bóveda con una clave independiente de tu cuenta</p>
+        <div class="auth-warning">
+          <i class="ti ti-alert-triangle"></i>
+          La contraseña maestra <strong>NO se envía a ningún servidor</strong>.
+          Si la pierdes, tu bóveda es <strong>IRRECUPERABLE</strong>.
+        </div>
+        <form onsubmit="onCreateMaster(event)">
+          <div class="form-group">
+            <label for="cmMasterPass">Contraseña maestra <small>(mín. 12 caracteres)</small></label>
+            <div class="pass-wrap">
+              <input type="password" id="cmMasterPass" placeholder="Elige una clave fuerte y única"
+                autocomplete="new-password" required minlength="12" />
+              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('cmMasterPass','cmMasterPassIcon')">
+                <i class="ti ti-eye" id="cmMasterPassIcon"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="cmMasterPass2">Confirmar contraseña maestra</label>
+            <div class="pass-wrap">
+              <input type="password" id="cmMasterPass2" placeholder="Repite la contraseña maestra"
+                autocomplete="new-password" required minlength="12" />
+              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('cmMasterPass2','cmMasterPass2Icon')">
+                <i class="ti ti-eye" id="cmMasterPass2Icon"></i>
+              </button>
+            </div>
+          </div>
+          <div id="cmError" class="auth-error hidden"></div>
+          <button type="submit" id="cmBtn" class="btn primary auth-btn">
+            <i class="ti ti-lock-check"></i> Crear contraseña maestra
+          </button>
+        </form>
+      </div>
+
+      <!-- Migrar bóveda legacy (existe vault sin master_verifier) -->
+      <div id="view-migrate" class="hidden">
+        <div class="auth-icon-wrap"><i class="ti ti-transfer"></i></div>
+        <h2 class="auth-title">Actualizar seguridad de la bóveda</h2>
+        <p class="auth-sub">Tu bóveda usa el cifrado anterior. Introduce la contraseña que usabas antes y elige una nueva contraseña maestra independiente.</p>
+        <div class="auth-warning">
+          <i class="ti ti-alert-triangle"></i>
+          La contraseña maestra <strong>NO se envía a ningún servidor</strong>.
+          Si la pierdes, tu bóveda es <strong>IRRECUPERABLE</strong>.
+        </div>
+        <form onsubmit="onMigrate(event)">
+          <div class="form-group">
+            <label for="migOldPass">Contraseña que usabas <strong>antes</strong> de esta actualización</label>
+            <div class="pass-wrap">
+              <input type="password" id="migOldPass" placeholder="Tu contraseña de cuenta anterior"
+                autocomplete="current-password" required />
+              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('migOldPass','migOldPassIcon')">
+                <i class="ti ti-eye" id="migOldPassIcon"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="migMasterPass">Nueva contraseña maestra <small>(mín. 12 caracteres)</small></label>
+            <div class="pass-wrap">
+              <input type="password" id="migMasterPass" placeholder="Elige una clave fuerte y única"
+                autocomplete="new-password" required minlength="12" />
+              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('migMasterPass','migMasterPassIcon')">
+                <i class="ti ti-eye" id="migMasterPassIcon"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="migMasterPass2">Confirmar contraseña maestra</label>
+            <div class="pass-wrap">
+              <input type="password" id="migMasterPass2" placeholder="Repite la contraseña maestra"
+                autocomplete="new-password" required minlength="12" />
+              <button type="button" class="pass-eye" aria-label="Mostrar u ocultar contraseña" onclick="togglePassField('migMasterPass2','migMasterPass2Icon')">
+                <i class="ti ti-eye" id="migMasterPass2Icon"></i>
+              </button>
+            </div>
+          </div>
+          <div id="migError" class="auth-error hidden"></div>
+          <button type="submit" id="migBtn" class="btn primary auth-btn">
+            <i class="ti ti-lock-check"></i> Migrar bóveda
           </button>
         </form>
         <div class="auth-alt">
