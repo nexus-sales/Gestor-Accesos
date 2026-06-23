@@ -46,13 +46,25 @@ async function loadVaultFromSupabase() {
     throw error;
   }
 
+  const blobWasV1 = !data.encrypted_data.startsWith('v2:');
   const plain   = await decryptData(data.encrypted_data, vaultPassword);
   const payload = JSON.parse(plain);
   crms         = Array.isArray(payload.crms)         ? payload.crms         : [];
   domains      = Array.isArray(payload.domains)      ? payload.domains      : [];
   privateItems = Array.isArray(payload.privateItems) ? payload.privateItems : [];
   notes        = Array.isArray(payload.notes)        ? payload.notes        : [];
-  if (await protectLegacyPrivateItems()) await saveVaultToSupabase();
+
+  // Exactamente una escritura: por items legacy, por upgrade de KDF, o por ambos.
+  // blobWasV1 se captura ANTES de protectLegacyPrivateItems para evitar doble save.
+  const itemsUpgraded = await protectLegacyPrivateItems();
+  if (itemsUpgraded) {
+    await saveVaultToSupabase(); // ya escribe v2: encrypted_data + master_verifier juntos
+  } else if (blobWasV1) {
+    // Migración perezosa de KDF: silenciosa, no bloquea el render si falla
+    saveVaultToSupabase().catch(err =>
+      console.warn('[KDF upgrade] Reintentará en la próxima carga:', err)
+    );
+  }
 }
 
 async function saveVaultToSupabase() {
