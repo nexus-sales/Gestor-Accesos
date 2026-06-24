@@ -245,9 +245,18 @@ async function initUnlockFlow() {
   // Path 2: sin wrapped_dek + vault + master_verifier → unlock (migración transparente)
   // Path 3: sin wrapped_dek + vault + sin master_verifier → migrate
   // Path 4: sin vault → create-master
-  if (wrappedDek || (hasVault && hasLegacyMaster)) { showAuth('unlock'); }
-  else if (hasVault)                                { showAuth('migrate'); }
-  else                                              { showAuth('create-master'); }
+  if (wrappedDek || (hasVault && hasLegacyMaster)) {
+    showAuth('unlock');
+    const showPasskey = cachedPasskeySlots.length > 0
+      && typeof isPasskeyUsableHere === 'function'
+      && isPasskeyUsableHere()
+      && isPasskeySupported();
+    document.getElementById('passkey-unlock-section').classList.toggle('hidden', !showPasskey);
+  } else if (hasVault) {
+    showAuth('migrate');
+  } else {
+    showAuth('create-master');
+  }
 }
 
 // ── Crear contraseña maestra (usuario nuevo) ──────────────────
@@ -301,6 +310,35 @@ async function onMigrate(e) {
   }
 }
 
+// ── Desbloquear con passkey (AND: maestra + passkey físico) ──
+
+async function onUnlockWithPasskey(e) {
+  e.preventDefault();
+  const pass = document.getElementById('uPass').value;
+  if (!pass) {
+    showMsg('uError', 'Introduce la contraseña maestra — los passkeys la necesitan para abrir.');
+    document.getElementById('uPass').focus();
+    return;
+  }
+
+  setBtnLoading('uPasskeyBtn', true);
+  hideMsg('uError');
+
+  try {
+    if (!(await ensureMfaSatisfied())) return;
+    await unlockWithPasskey(pass);      // setea vaultKey
+    await loadVaultFromSupabase();
+    showApp();
+    resetInactivity();
+    migrateLocalVault(pass);
+  } catch (err) {
+    vaultKey = null;
+    showMsg('uError', err.message);
+  } finally {
+    setBtnLoading('uPasskeyBtn', false);
+  }
+}
+
 // ── Logout / Lock ────────────────────────────────────────────
 
 async function onLogout(silent = false) {
@@ -317,6 +355,11 @@ function lockVault() {
   closeMobileMenu();
   document.getElementById('unlockEmail').textContent = currentUser?.email || '';
   showAuth('unlock');
+  const showPasskey = cachedPasskeySlots.length > 0
+    && typeof isPasskeyUsableHere === 'function'
+    && isPasskeyUsableHere()
+    && isPasskeySupported();
+  document.getElementById('passkey-unlock-section').classList.toggle('hidden', !showPasskey);
 }
 
 function clearVaultData() {

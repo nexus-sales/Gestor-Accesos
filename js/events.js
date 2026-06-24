@@ -71,3 +71,22 @@ document.getElementById('btn-copy-pass').addEventListener('click', () => copyFie
 
 // Modal de nota privada
 document.getElementById('private-note-cancel-btn').addEventListener('click', closePrivateNoteAccess);
+
+// Passkeys — desbloqueo con passkey
+document.getElementById('btn-unlock-passkey').addEventListener('click', onUnlockWithPasskey);
+
+// Passkeys — menú (desktop + móvil comparten data-action)
+document.querySelectorAll('[data-action="passkeys"]').forEach(el =>
+  el.addEventListener('click', openPasskeySettings)
+);
+
+// Passkeys — modal de gestión
+document.getElementById('passkey-modal-close-btn').addEventListener('click', closePasskeySettings);
+document.getElementById('passkey-modal-cancel-btn').addEventListener('click', closePasskeySettings);
+document.getElementById('btn-add-passkey').addEventListener('click', openAddPasskeyFlow);
+
+// Passkeys — delegación para botones "Eliminar" (renderizados dinámicamente)
+document.getElementById('passkeyList').addEventListener('click', e => {
+  const btn = e.target.closest('[data-credential-id]');
+  if (btn) deletePasskey(btn.dataset.credentialId);
+});

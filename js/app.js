@@ -848,7 +848,21 @@ async function unlockPrivateNote(event) {
     return;
   }
 
-  // 3) Descifrado de nota / ficha privada con la DEK
+  // 3) Rama enroll-passkey — registrar nuevo passkey (identidad ya verificada arriba)
+  if (kind === 'enroll-passkey') {
+    closePrivateNoteAccess();
+    try {
+      showToast('Iniciando registro de passkey…');
+      await addPasskeySlot(password);
+      showToast('Passkey registrado correctamente.');
+    } catch (e) {
+      alert('Error al registrar el passkey: ' + e.message);
+    }
+    openPasskeySettings(); // reabre el modal de gestión con la lista actualizada
+    return;
+  }
+
+  // 4) Descifrado de nota / ficha privada con la DEK
   const entry = kind === 'note'
     ? notes.find(i => i.id === id)
     : privateItems.find(i => i.id === id);
@@ -1013,3 +1027,64 @@ document.addEventListener('keydown', e => {
 });
 
 initApp();
+
+// ── Gestión de passkeys ───────────────────────────────────────
+
+function openPasskeySettings() {
+  if (!isPasskeyUsableHere || !isPasskeyUsableHere()) {
+    alert('Los passkeys solo funcionan en nexus-sales.eu y sus subdominios.');
+    return;
+  }
+  renderPasskeyList();
+  document.getElementById('passkeyModal').classList.remove('hidden');
+  closeMenu();
+  closeMobileMenu();
+}
+
+function closePasskeySettings() {
+  document.getElementById('passkeyModal').classList.add('hidden');
+}
+
+function renderPasskeyList() {
+  const container = document.getElementById('passkeyList');
+  if (!cachedPasskeySlots.length) {
+    container.innerHTML = '<p class="passkey-empty">No hay passkeys registrados.</p>';
+    return;
+  }
+  container.innerHTML = cachedPasskeySlots.map(s => {
+    const shortId = s.credentialId.slice(0, 16) + '…';
+    const date    = s.addedAt
+      ? new Date(s.addedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '—';
+    return `<div class="passkey-row">
+      <div class="passkey-row-info">
+        <span class="passkey-row-id" title="${esc(s.credentialId)}">${esc(shortId)}</span>
+        <span class="passkey-row-date">Añadido: ${date}</span>
+      </div>
+      <button type="button" class="icon-btn danger" data-credential-id="${esc(s.credentialId)}" aria-label="Eliminar passkey">
+        <i class="ti ti-trash"></i>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function openAddPasskeyFlow() {
+  if (!isPasskeySupported()) {
+    alert('Tu navegador no soporta passkeys (WebAuthn).');
+    return;
+  }
+  closePasskeySettings();
+  pendingPrivateAccess = { kind: 'enroll-passkey' };
+  openPrivateAccessDialog('Registrar passkey');
+}
+
+async function deletePasskey(credentialId) {
+  if (!confirm('¿Eliminar este passkey? Podrás seguir usando la contraseña maestra.')) return;
+  try {
+    await removePasskeySlot(credentialId);
+    renderPasskeyList();
+    showToast('Passkey eliminado.');
+  } catch (err) {
+    alert('Error al eliminar el passkey: ' + err.message);
+  }
+}

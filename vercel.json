@@ -1,5 +1,16 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".",
-  "framework": null
+  "framework": null,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Permissions-Policy",
+          "value": "publickey-credentials-create=(self), publickey-credentials-get=(self)"
+        }
+      ]
+    }
+  ]
 }

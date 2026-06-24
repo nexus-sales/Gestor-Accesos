@@ -153,6 +153,43 @@ async function decryptLegacyLocalData(ciphertextB64, password) {
   }
 }
 
+// ── Argon2id crudo (bytes, sin importar a CryptoKey) ─────────
+// Igual que deriveKeyArgon2 pero devuelve Uint8Array para concatenar con el
+// secreto PRF antes del HKDF (slot de passkey).
+
+async function deriveArgon2Raw(password, salt, params = ARGON2_DEFAULTS) {
+  return hashwasm.argon2id({
+    password,
+    salt,
+    memorySize:  params.memorySize,
+    iterations:  params.iterations,
+    parallelism: params.parallelism,
+    hashLength:  params.hashLength,
+    outputType:  'binary',
+  });
+}
+
+// ── HKDF-SHA256 ───────────────────────────────────────────────
+// Mezcla ikmBytes (Argon2Raw ‖ prfSecret) con un salt y un string de info.
+// Devuelve Uint8Array de len bytes, listo para usar como dekBytes.
+
+async function hkdfKey(ikmBytes, saltBytes, infoStr, len = 32) {
+  const base = await crypto.subtle.importKey(
+    'raw', ikmBytes, { name: 'HKDF' }, false, ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: saltBytes,
+      info: new TextEncoder().encode(infoStr),
+    },
+    base,
+    len * 8
+  );
+  return new Uint8Array(bits);
+}
+
 // ── Cifrado/descifrado con DEK — formato k1 (sin KDF) ────────
 // La DEK (32 bytes aleatorios) ya es material de clave; no se deriva con Argon2.
 // Formato: "k1:" + base64(iv[12] | ciphertext)

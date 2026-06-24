@@ -1,7 +1,8 @@
 // Operaciones de bóveda — carga y guardado en Supabase (datos siempre cifrados)
 
-let cachedVerifier   = null; // master_verifier legacy (para chequeo de Path 2)
-let cachedWrappedDek = null; // wrapped_dek: DEK envuelta con la maestra
+let cachedVerifier    = null; // master_verifier legacy (para chequeo de Path 2)
+let cachedWrappedDek  = null; // wrapped_dek: DEK envuelta con la maestra
+let cachedPasskeySlots = [];  // passkey_slots: slots adicionales de la DEK
 
 // ── Helpers DEK ───────────────────────────────────────────────
 
@@ -19,17 +20,21 @@ async function unwrapDek(wrapped, master) {
 async function fetchMasterVerifier() {
   const { data, error } = await sb
     .from('vaults_ga')
-    .select('wrapped_dek, master_verifier, encrypted_data')
+    .select('wrapped_dek, master_verifier, encrypted_data, passkey_slots')
     .eq('user_id', currentUser.id)
     .single();
 
   if (error) {
-    if (error.code === 'PGRST116') return { wrappedDek: null, hasVault: false, hasLegacyMaster: false };
+    if (error.code === 'PGRST116') {
+      cachedPasskeySlots = [];
+      return { wrappedDek: null, hasVault: false, hasLegacyMaster: false };
+    }
     throw error;
   }
 
-  cachedWrappedDek = data.wrapped_dek;
-  cachedVerifier   = data.master_verifier;
+  cachedWrappedDek   = data.wrapped_dek;
+  cachedVerifier     = data.master_verifier;
+  cachedPasskeySlots = data.passkey_slots || [];
   return {
     wrappedDek:      data.wrapped_dek,
     hasVault:        !!data.encrypted_data,
@@ -370,4 +375,88 @@ async function _reencryptNotes(notes, oldPass, dek) {
     const plain = await decryptData(note.secretData, oldPass);
     return { ...note, secretData: await encryptWithKey(plain, dek) };
   }));
+}
+
+// ── Passkey slots — slots adicionales de DEK ──────────────────
+//
+// Kwrap (AND) = HKDF-SHA256(
+//   ikm  = Argon2Raw(master, masterSalt) ‖ prfSecret,
+//   salt = prfSalt,
+//   info = "GA-passkey-slot-v1"
+// )
+// wrappedDek = encryptWithKey(base64(DEK), Kwrap)
+//
+// Solo wrappedDek, credentialId, prfSalt y masterSalt van a Supabase.
+// La maestra y el prfSecret NUNCA salen del cliente.
+
+async function buildPasskeyKwrap(master, prfSecret, prfSalt, masterSalt) {
+  const aRaw = await deriveArgon2Raw(master, new Uint8Array(b64ToBuf(masterSalt)));
+  const ikm  = new Uint8Array(aRaw.byteLength + prfSecret.byteLength);
+  ikm.set(aRaw, 0);
+  ikm.set(prfSecret, aRaw.byteLength);
+  return hkdfKey(ikm, new Uint8Array(b64ToBuf(prfSalt)), 'GA-passkey-slot-v1');
+}
+
+async function addPasskeySlot(master) {
+  if (!vaultKey) throw new Error('La bóveda no está desbloqueada.');
+  if (!(await hasAal2Session())) throw new Error('Verifica el 2FA antes de registrar un passkey.');
+
+  const prfSalt    = bufToB64(crypto.getRandomValues(new Uint8Array(32)).buffer);
+  const masterSalt = bufToB64(crypto.getRandomValues(new Uint8Array(32)).buffer);
+
+  const { rawId }                    = await registerPasskey(currentUser.id, currentUser.email, cachedPasskeySlots);
+  const { prfSecret, usedCredentialId } = await getPasskeyPrf([
+    { credentialId: bufToB64url(rawId), prfSalt },
+  ]);
+
+  const kwrapBytes = await buildPasskeyKwrap(master, prfSecret, prfSalt, masterSalt);
+  const wrappedDek = await encryptWithKey(bufToB64(vaultKey.buffer), kwrapBytes);
+
+  const slot = {
+    credentialId: usedCredentialId,
+    prfSalt,
+    masterSalt,
+    wrappedDek,
+    addedAt: Date.now(),
+  };
+
+  const updated = [...cachedPasskeySlots, slot];
+
+  const { error } = await sb.from('vaults_ga').upsert(
+    { user_id: currentUser.id, passkey_slots: updated, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' }
+  );
+  if (error) throw error;
+
+  cachedPasskeySlots = updated;
+}
+
+async function removePasskeySlot(credentialId) {
+  const filtered = cachedPasskeySlots.filter(s => s.credentialId !== credentialId);
+
+  if (filtered.length === 0 && !cachedWrappedDek) {
+    throw new Error('No puedes eliminar el último passkey sin un slot de contraseña maestra.');
+  }
+
+  const { error } = await sb.from('vaults_ga').upsert(
+    { user_id: currentUser.id, passkey_slots: filtered, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id' }
+  );
+  if (error) throw error;
+
+  cachedPasskeySlots = filtered;
+}
+
+async function unlockWithPasskey(master) {
+  if (!cachedPasskeySlots.length) throw new Error('No hay passkeys registrados.');
+
+  const { usedCredentialId, prfSecret } = await getPasskeyPrf(cachedPasskeySlots);
+
+  const slot = cachedPasskeySlots.find(s => s.credentialId === usedCredentialId);
+  if (!slot) throw new Error('Credencial de passkey no reconocida.');
+
+  const kwrapBytes = await buildPasskeyKwrap(master, prfSecret, slot.prfSalt, slot.masterSalt);
+  const dekB64     = await decryptWithKey(slot.wrappedDek, kwrapBytes);
+  vaultKey = new Uint8Array(b64ToBuf(dekB64));
+  // loadVaultFromSupabase lo llama el caller (auth.js)
 }

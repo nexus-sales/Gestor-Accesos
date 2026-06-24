@@ -184,6 +184,16 @@
             <i class="ti ti-lock-open"></i> Desbloquear
           </button>
         </form>
+        <div id="passkey-unlock-section" class="hidden">
+          <div class="auth-divider">o</div>
+          <p class="auth-hint">
+            <i class="ti ti-info-circle"></i>
+            Los passkeys requieren también la contraseña maestra (AND).
+          </p>
+          <button type="button" id="btn-unlock-passkey" class="btn auth-btn">
+            <i class="ti ti-fingerprint"></i> Desbloquear con passkey
+          </button>
+        </div>
         <div class="auth-alt">
           <button type="button" id="btn-unlock-logout" class="link-btn">
             <i class="ti ti-logout"></i> Cerrar sesión
@@ -332,6 +342,9 @@
             <button type="button" class="menu-item" data-action="2fa">
               <i class="ti ti-shield"></i> Autenticación 2FA
             </button>
+            <button type="button" class="menu-item" data-action="passkeys">
+              <i class="ti ti-fingerprint"></i> Passkeys
+            </button>
             <hr class="menu-sep" />
             <button type="button" class="menu-item" data-action="lock">
               <i class="ti ti-lock"></i> Bloquear bóveda
@@ -360,6 +373,9 @@
         <div id="mobileUserMenu" class="user-menu mobile-user-menu hidden">
           <button type="button" class="menu-item" data-action="2fa">
             <i class="ti ti-shield"></i> Autenticación 2FA
+          </button>
+          <button type="button" class="menu-item" data-action="passkeys">
+            <i class="ti ti-fingerprint"></i> Passkeys
           </button>
           <hr class="menu-sep" />
           <button type="button" class="menu-item" data-action="lock">
@@ -526,6 +542,35 @@
   </form>
 </div>
 
+<!-- Modal de gestión de passkeys -->
+<div id="passkeyModal" class="overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="passkeyModalTitle">
+    <div class="modal-header">
+      <h2 id="passkeyModalTitle"><i class="ti ti-fingerprint"></i> Passkeys</h2>
+      <button type="button" id="passkey-modal-close-btn" class="icon-btn" aria-label="Cerrar">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+    <div class="passkey-info">
+      <p>
+        <i class="ti ti-shield-check"></i>
+        <span><strong>Semántica AND:</strong> necesitas tu contraseña maestra Y el passkey para desbloquear. Si pierdes el passkey, la contraseña maestra sigue funcionando.</span>
+      </p>
+      <p>
+        <i class="ti ti-device-usb"></i>
+        <span>Recomendamos un segundo passkey de respaldo (p.ej. YubiKey USB-C/NFC), especialmente si usas Google Password Manager como passkey principal.</span>
+      </p>
+    </div>
+    <div id="passkeyList" class="passkey-list"></div>
+    <div class="modal-footer">
+      <button type="button" id="passkey-modal-cancel-btn" class="btn">Cerrar</button>
+      <button type="button" id="btn-add-passkey" class="btn primary">
+        <i class="ti ti-plus"></i> Añadir passkey
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <nav class="mobile-nav" aria-label="Navegación principal">
@@ -553,6 +598,7 @@
 <script src="js/env.js"></script>
 <script src="js/config.js"></script>
 <script src="js/crypto.js"></script>
+<script src="js/webauthn.js"></script>
 <script src="js/vault.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/app.js"></script>
