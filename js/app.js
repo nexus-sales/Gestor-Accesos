@@ -94,8 +94,8 @@ function switchTab(tabId) {
 }
 
 function updateBtnNew() {
-  const labels = { crms: 'Nuevo CRM', domains: 'Nuevo Dominio', private: 'Nueva Contraseña', notes: 'Nueva Nota' };
-  const titles = { crms: 'CRMs', domains: 'Dominios y emails', private: 'Contraseñas privadas', notes: 'Notas' };
+  const labels = { crms: 'Nuevo servicio', domains: 'Nuevo Dominio', private: 'Nueva Contraseña', notes: 'Nueva Nota' };
+  const titles = { crms: 'Servicios', domains: 'Dominios y emails', private: 'Contraseñas privadas', notes: 'Notas' };
   const descriptions = {
     crms: 'Tus accesos de trabajo, ordenados y protegidos.',
     domains: 'Dominios, proveedores y cuentas de correo en un solo lugar.',
@@ -133,7 +133,7 @@ function openModal(id) {
     return;
   }
   editingId = id || null;
-  const titles = { crms: 'CRM', domains: 'Dominio', private: 'Contraseña Privada', notes: 'Nota' };
+  const titles = { crms: 'servicio', domains: 'Dominio', private: 'Contraseña Privada', notes: 'Nota' };
   document.getElementById('modalTitle').textContent =
     (id ? 'Editar ' : 'Nuevo ') + titles[currentTab];
 
@@ -236,10 +236,10 @@ function configureModalFields() {
     grpSector.classList.remove('hidden'); grpUrl.classList.remove('hidden');
     lblSector.innerHTML = 'Sector <span class="required">*</span>';
     fSector.placeholder = 'ej. Automoción';
-    lblMarca.innerHTML  = 'Marca <span class="required">*</span>';
-    fMarca.placeholder  = 'ej. Toyota';
-    lblUrl.innerHTML    = 'URL del CRM <span class="required">*</span>';
-    fUrl.placeholder    = 'https://crm.ejemplo.com';
+    lblMarca.innerHTML  = 'Servicio / Portal <span class="required">*</span>';
+    fMarca.placeholder  = 'ej. Salesforce o Campus de formación';
+    lblUrl.innerHTML    = 'URL del servicio <span class="required">*</span>';
+    fUrl.placeholder    = 'https://portal.ejemplo.com';
     lblUser.textContent = 'Usuario';
     fUser.placeholder   = 'usuario@dominio.com';
   } else if (currentTab === 'domains') {
@@ -601,7 +601,7 @@ function render() {
   const q  = document.getElementById('search').value.toLowerCase();
   const fs = document.getElementById('filterSector').value;
 
-  if (currentTab === 'crms')    renderList(crms,    q, fs, 'CRM',    'CRMs');
+  if (currentTab === 'crms')    renderList(crms,    q, fs, 'Servicio', 'Servicios');
   else if (currentTab === 'domains') renderList(domains, q, fs, 'Dominio', 'Dominios');
   else if (currentTab === 'private') renderPrivate(q);
   else renderNotes(q, fs);

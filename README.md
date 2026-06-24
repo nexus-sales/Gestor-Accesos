@@ -1,6 +1,6 @@
 # Gestor de Accesos
 
-Gestor de Accesos es una bóveda web para centralizar credenciales de CRMs, dominios, cuentas privadas, procedimientos y contactos. Se creó para sustituir documentos dispersos, mensajes y hojas de cálculo por un espacio único, ordenado y protegido.
+Gestor de Accesos es una bóveda web para centralizar credenciales de servicios y portales, dominios, cuentas privadas, procedimientos y contactos. Se creó para sustituir documentos dispersos, mensajes y hojas de cálculo por un espacio único, ordenado y protegido.
 
 La aplicación combina una interfaz sencilla con cifrado en el navegador, autenticación mediante Supabase y verificación obligatoria en dos pasos.
 
@@ -18,9 +18,10 @@ Gestor de Accesos permite:
 
 ## Funciones principales
 
-### CRMs
+### Servicios
 
-- Organización por sectores y marcas.
+- Organización por sectores y servicios.
+- Compatible con CRMs, portales de formación, extranets y otras herramientas web.
 - URL de acceso, usuario, contraseña y observaciones.
 - Búsqueda, filtros y copia rápida de credenciales.
 - Normalización y validación de enlaces antes de abrirlos.
@@ -57,6 +58,7 @@ Gestor de Accesos permite:
 - Navegación adaptada a escritorio y móvil.
 - Exportación de la bóveda a un PDF protegido por contraseña.
 - Indicador del estado de sincronización.
+- Iconos propios para pestañas del navegador, accesos directos y pantalla de inicio móvil.
 
 ## Seguridad
 
@@ -77,6 +79,7 @@ Los datos se cifran en el navegador mediante **AES-GCM de 256 bits**. La clave s
 - [Supabase](https://supabase.com/) para autenticación, 2FA y almacenamiento.
 - Web Crypto API para el cifrado local.
 - jsPDF y AutoTable para la exportación protegida.
+- Web App Manifest para definir la identidad visual al instalar o añadir la aplicación a la pantalla de inicio.
 - Vercel como opción de despliegue.
 
 ## Puesta en marcha
@@ -126,6 +129,7 @@ Después de crear la tabla, ejecuta [`supabase-rls-mfa.sql`](supabase-rls-mfa.sq
 
 ```text
 css/styles.css          Interfaz y diseño responsive
+assets/icons/           Favicons, iconos móviles y Web App Manifest
 js/app.js               Navegación, formularios y CRUD
 js/auth.js              Autenticación, 2FA y bloqueo
 js/crypto.js            Cifrado y derivación de clave
@@ -134,6 +138,12 @@ js/pdf.js               Exportación a PDF protegido
 index.html              Estructura principal de la aplicación
 supabase-rls-mfa.sql    Políticas de seguridad de Supabase
 ```
+
+## Iconos de la aplicación
+
+Los recursos visuales se encuentran en `assets/icons/`. `index.html` enlaza los favicons en formatos ICO, SVG y PNG, el icono de Apple y el archivo `manifest.json`.
+
+El manifiesto identifica la aplicación como **Gestor de Accesos** e incluye imágenes de 192, 512 y 1024 píxeles para accesos directos y dispositivos compatibles. Si se sustituyen los diseños, deben conservarse los nombres y dimensiones actuales o actualizar también sus rutas en `index.html` y `assets/icons/manifest.json`.
 
 ## Privacidad
 

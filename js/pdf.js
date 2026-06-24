@@ -36,10 +36,10 @@ async function generatePDF(dek, pdfPassword) {
 
   let y = 37;
 
-  // CRMs
+  // Servicios (clave interna: crms)
   if (crms.length > 0) {
-    y = addSection(doc, y, '1. Accesos de CRMs', [28, 28, 26],
-      ['Sector', 'Marca', 'URL', 'Usuario', 'Contraseña', 'Observaciones'],
+    y = addSection(doc, y, '1. Accesos a servicios', [28, 28, 26],
+      ['Sector', 'Servicio / Portal', 'URL', 'Usuario', 'Contraseña', 'Observaciones'],
       crms.map(c => [c.sector||'—', c.marca||'—', c.url||'—', c.user||'—', c.pass||'—', c.obs||'—'])
     );
   }
