@@ -628,7 +628,7 @@ function renderList(items, q, fs, singular, plural) {
       <div class="empty-icon"><i class="ti ${items.length === 0 ? 'ti-sparkles' : 'ti-search'}"></i></div>
       <h2>${items.length === 0 ? `Tu espacio de ${plural.toLowerCase()} está listo` : 'No encontramos coincidencias'}</h2>
       <p>${items.length === 0 ? `Añade tu primer ${singular.toLowerCase()} para tener sus accesos siempre a mano.` : 'Prueba con otro término o cambia el filtro seleccionado.'}</p>
-      ${items.length === 0 ? `<button type="button" class="btn primary empty-action" onclick="openModal()"><i class="ti ti-plus"></i> Añadir ${singular.toLowerCase()}</button>` : ''}
+      ${items.length === 0 ? `<button type="button" class="btn primary empty-action" data-action="open-modal"><i class="ti ti-plus"></i> Añadir ${singular.toLowerCase()}</button>` : ''}
     </div>`;
     return;
   }
@@ -678,7 +678,7 @@ function renderPrivate(q) {
       <div class="empty-icon"><i class="ti ${privateItems.length === 0 ? 'ti-lock-heart' : 'ti-search'}"></i></div>
       <h2>${privateItems.length === 0 ? 'Tu espacio privado está preparado' : 'No encontramos coincidencias'}</h2>
       <p>${privateItems.length === 0 ? 'Guarda aquí credenciales personales con cifrado AES-256.' : 'Prueba con otro término de búsqueda.'}</p>
-      ${privateItems.length === 0 ? '<button type="button" class="btn primary empty-action" onclick="openModal()"><i class="ti ti-plus"></i> Añadir contraseña</button>' : ''}
+      ${privateItems.length === 0 ? '<button type="button" class="btn primary empty-action" data-action="open-modal"><i class="ti ti-plus"></i> Añadir contraseña</button>' : ''}
     </div>`;
     return;
   }
@@ -697,19 +697,19 @@ function buildPrivateCard(item, categories) {
     <div class="private-card-head">
       <span class="private-category"><i class="ti ${categoryIcon}"></i>${categoryLabel}</span>
       <div class="crm-actions">
-        ${revealed ? `<button type="button" class="icon-btn" onclick="hidePrivateItem('${item.id}')" aria-label="Ocultar ficha"><i class="ti ti-eye-off"></i></button>` : ''}
-        <button type="button" class="icon-btn" onclick="${isLocked ? `requestPrivateItemAccess('${item.id}','edit')` : `openModal('${item.id}')`}" aria-label="Editar ficha"><i class="ti ti-edit"></i></button>
-        <button type="button" class="icon-btn danger" onclick="${isLocked ? `requestPrivateItemAccess('${item.id}','delete')` : `deleteEntry('${item.id}')`}" aria-label="Eliminar ficha"><i class="ti ti-trash"></i></button>
+        ${revealed ? `<button type="button" class="icon-btn" data-action="hide-private-item" data-id="${item.id}" aria-label="Ocultar ficha"><i class="ti ti-eye-off"></i></button>` : ''}
+        <button type="button" class="icon-btn" data-action="${isLocked ? 'request-private-item' : 'open-modal'}" data-id="${item.id}" ${isLocked ? 'data-kind="edit"' : ''} aria-label="Editar ficha"><i class="ti ti-edit"></i></button>
+        <button type="button" class="icon-btn danger" data-action="${isLocked ? 'request-private-item' : 'delete-entry'}" data-id="${item.id}" ${isLocked ? 'data-kind="delete"' : ''} aria-label="Eliminar ficha"><i class="ti ti-trash"></i></button>
       </div>
     </div>
     <h2>${isLocked ? '<i class="ti ti-lock"></i> Ficha privada' : esc(view.marca)}</h2>
     ${isLocked ? `<div class="private-card-placeholder">
       <div class="private-lock-orb"><i class="ti ti-shield-lock"></i></div>
       <p>Nombre, usuario, contraseña y observaciones están cifrados.</p>
-      <button type="button" class="btn private-unlock-btn" onclick="requestPrivateItemAccess('${item.id}','reveal')"><i class="ti ti-key"></i> Introducir clave</button>
+      <button type="button" class="btn private-unlock-btn" data-action="request-private-item" data-id="${item.id}" data-kind="reveal"><i class="ti ti-key"></i> Introducir clave</button>
     </div>` : `<div class="private-card-data">
-      <div class="crm-field"><label>Usuario / ID</label><div class="crm-field-val"><span>${esc(view.user || '—')}</span>${view.user ? `<button type="button" class="copy-field" onclick="copyPrivateItemField('${item.id}','user','Usuario copiado')"><i class="ti ti-copy"></i></button>` : ''}</div></div>
-      <div class="crm-field"><label>${['api','ai'].includes(item.category) ? 'API key / Token' : 'Contraseña'}</label><div class="crm-field-val"><span id="private-pass-${item.id}">${passHidden}</span>${view.pass ? `<span class="crm-inline-actions"><button type="button" class="toggle-pass" id="privatePassBtn-${item.id}" onclick="togglePrivateItemPass('${item.id}')"><i class="ti ti-eye"></i></button><button type="button" class="copy-field" onclick="copyPrivateItemField('${item.id}','pass','${['api','ai'].includes(item.category) ? 'API key copiada' : 'Contraseña copiada'}')"><i class="ti ti-copy"></i></button></span>` : ''}</div></div>
+      <div class="crm-field"><label>Usuario / ID</label><div class="crm-field-val"><span>${esc(view.user || '—')}</span>${view.user ? `<button type="button" class="copy-field" data-action="copy-private-item-field" data-id="${item.id}" data-field="user" data-msg="Usuario copiado"><i class="ti ti-copy"></i></button>` : ''}</div></div>
+      <div class="crm-field"><label>${['api','ai'].includes(item.category) ? 'API key / Token' : 'Contraseña'}</label><div class="crm-field-val"><span id="private-pass-${item.id}">${passHidden}</span>${view.pass ? `<span class="crm-inline-actions"><button type="button" class="toggle-pass" id="privatePassBtn-${item.id}" data-action="toggle-private-item-pass" data-id="${item.id}"><i class="ti ti-eye"></i></button><button type="button" class="copy-field" data-action="copy-private-item-field" data-id="${item.id}" data-field="pass" data-msg="${['api','ai'].includes(item.category) ? 'API key copiada' : 'Contraseña copiada'}"><i class="ti ti-copy"></i></button></span>` : ''}</div></div>
       ${view.obs ? `<div class="private-card-obs">${esc(view.obs)}</div>` : ''}
     </div>`}
   </article>`;
@@ -737,7 +737,7 @@ function renderNotes(q, typeFilter) {
       <div class="empty-icon"><i class="ti ${notes.length ? 'ti-search' : 'ti-notebook'}"></i></div>
       <h2>${notes.length ? 'No encontramos coincidencias' : 'Tu memoria de trabajo empieza aquí'}</h2>
       <p>${notes.length ? 'Prueba con otro título, etiqueta o término de búsqueda.' : 'Guarda procedimientos, contactos y cualquier información que necesites consultar después.'}</p>
-      ${notes.length ? '' : '<button type="button" class="btn primary empty-action" onclick="openModal()"><i class="ti ti-plus"></i> Crear primera nota</button>'}
+      ${notes.length ? '' : '<button type="button" class="btn primary empty-action" data-action="open-modal"><i class="ti ti-plus"></i> Crear primera nota</button>'}
     </div>`;
     return;
   }
@@ -770,10 +770,10 @@ function buildNoteCard(note) {
       <span class="note-type"><i class="ti ${typeIcon}"></i>${typeLabel}</span>
       <div class="crm-actions">
         ${note.pinned ? '<span class="note-pinned" title="Nota fijada"><i class="ti ti-pin-filled"></i></span>' : ''}
-        ${note.private && revealed ? `<button type="button" class="icon-btn" onclick="hidePrivateNote('${note.id}')" aria-label="Ocultar nota"><i class="ti ti-eye-off"></i></button>` : ''}
-        <button type="button" class="icon-btn" onclick="${isLocked ? `requestPrivateNoteAccess('${note.id}','copy')` : `copyNoteContent('${note.id}')`}" aria-label="Copiar nota"><i class="ti ti-copy"></i></button>
-        <button type="button" class="icon-btn" onclick="${isLocked ? `requestPrivateNoteAccess('${note.id}','edit')` : `openModal('${note.id}')`}" aria-label="Editar nota"><i class="ti ti-edit"></i></button>
-        <button type="button" class="icon-btn danger" onclick="deleteEntry('${note.id}')" aria-label="Eliminar nota"><i class="ti ti-trash"></i></button>
+        ${note.private && revealed ? `<button type="button" class="icon-btn" data-action="hide-private-note" data-id="${note.id}" aria-label="Ocultar nota"><i class="ti ti-eye-off"></i></button>` : ''}
+        <button type="button" class="icon-btn" data-action="${isLocked ? 'request-private-note' : 'copy-note'}" data-id="${note.id}" ${isLocked ? 'data-kind="copy"' : ''} aria-label="Copiar nota"><i class="ti ti-copy"></i></button>
+        <button type="button" class="icon-btn" data-action="${isLocked ? 'request-private-note' : 'open-modal'}" data-id="${note.id}" ${isLocked ? 'data-kind="edit"' : ''} aria-label="Editar nota"><i class="ti ti-edit"></i></button>
+        <button type="button" class="icon-btn danger" data-action="delete-entry" data-id="${note.id}" aria-label="Eliminar nota"><i class="ti ti-trash"></i></button>
       </div>
     </div>
     <h2>${isLocked ? '<i class="ti ti-lock note-title-lock"></i> Nota privada' : esc(view.title)}</h2>
@@ -781,7 +781,7 @@ function buildNoteCard(note) {
     ${isLocked ? `<div class="note-private-placeholder">
       <i class="ti ti-shield-lock"></i>
       <p>El contenido está cifrado y oculto.</p>
-      <button type="button" class="btn" onclick="requestPrivateNoteAccess('${note.id}','reveal')"><i class="ti ti-lock-open"></i> Desbloquear</button>
+      <button type="button" class="btn" data-action="request-private-note" data-id="${note.id}" data-kind="reveal"><i class="ti ti-lock-open"></i> Desbloquear</button>
     </div>` : `<div class="note-content">${esc(view.content)}</div>`}
     <footer class="note-footer"><div class="note-tags">${tags}</div><time>${updated}</time></footer>
   </article>`;
@@ -967,10 +967,10 @@ function buildCard(c, isPrivate = false) {
     <div class="crm-card-header">
       <span class="crm-brand">${esc(c.marca)}</span>
       <div class="crm-actions">
-        <button type="button" class="icon-btn" onclick="openModal('${c.id}')" aria-label="Editar ${esc(c.marca)}">
+        <button type="button" class="icon-btn" data-action="open-modal" data-id="${c.id}" aria-label="Editar ${esc(c.marca)}">
           <i class="ti ti-edit"></i>
         </button>
-        <button type="button" class="icon-btn danger" onclick="deleteEntry('${c.id}')" aria-label="Eliminar ${esc(c.marca)}">
+        <button type="button" class="icon-btn danger" data-action="delete-entry" data-id="${c.id}" aria-label="Eliminar ${esc(c.marca)}">
           <i class="ti ti-trash"></i>
         </button>
       </div>
@@ -983,7 +983,7 @@ function buildCard(c, isPrivate = false) {
         <label>${isPrivate ? 'Usuario / ID' : 'Usuario'}</label>
         <div class="crm-field-val">
           <span>${esc(c.user || '—')}</span>
-          ${c.user ? `<button type="button" class="copy-field" onclick="copyEntryField('${c.id}','user','Usuario copiado')" aria-label="Copiar usuario">
+          ${c.user ? `<button type="button" class="copy-field" data-action="copy-entry-field" data-id="${c.id}" data-field="user" data-msg="Usuario copiado" aria-label="Copiar usuario">
             <i class="ti ti-copy"></i>
           </button>` : ''}
         </div>
@@ -994,10 +994,10 @@ function buildCard(c, isPrivate = false) {
           <span id="pass-${c.id}">${c.pass ? passHidden : '—'}</span>
           ${c.pass ? `<span class="crm-inline-actions">
             <button type="button" class="toggle-pass" id="passBtn-${c.id}"
-              onclick="toggleCardPass('${c.id}')" aria-label="Mostrar/ocultar contraseña">
+              data-action="toggle-card-pass" data-id="${c.id}" aria-label="Mostrar/ocultar contraseña">
               <i class="ti ti-eye"></i>
             </button>
-            <button type="button" class="copy-field" onclick="copyEntryField('${c.id}','pass','Contraseña copiada')" aria-label="Copiar contraseña">
+            <button type="button" class="copy-field" data-action="copy-entry-field" data-id="${c.id}" data-field="pass" data-msg="Contraseña copiada" aria-label="Copiar contraseña">
               <i class="ti ti-copy"></i>
             </button>
           </span>` : ''}

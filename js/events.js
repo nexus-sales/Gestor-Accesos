@@ -90,3 +90,23 @@ document.getElementById('passkeyList').addEventListener('click', e => {
   const btn = e.target.closest('[data-credential-id]');
   if (btn) deletePasskey(btn.dataset.credentialId);
 });
+
+// Delegación de acciones en tarjetas (sustituye onclick= inline para cumplir CSP)
+document.getElementById('list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const { action, id, kind, field, msg } = btn.dataset;
+  switch (action) {
+    case 'open-modal':               openModal(id); break;
+    case 'delete-entry':             deleteEntry(id); break;
+    case 'toggle-card-pass':         toggleCardPass(id); break;
+    case 'copy-entry-field':         copyEntryField(id, field, msg); break;
+    case 'hide-private-item':        hidePrivateItem(id); break;
+    case 'request-private-item':     requestPrivateItemAccess(id, kind); break;
+    case 'copy-private-item-field':  copyPrivateItemField(id, field, msg); break;
+    case 'toggle-private-item-pass': togglePrivateItemPass(id); break;
+    case 'hide-private-note':        hidePrivateNote(id); break;
+    case 'request-private-note':     requestPrivateNoteAccess(id, kind); break;
+    case 'copy-note':                copyNoteContent(id); break;
+  }
+});
