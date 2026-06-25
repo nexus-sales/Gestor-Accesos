@@ -122,6 +122,7 @@ function showToast(msg) {
 // ── Modal ─────────────────────────────────────────────────────
 
 function openModal(id) {
+  if (typeof id !== 'string') id = null;
   const requestedNote = currentTab === 'notes' && id ? notes.find(note => note.id === id) : null;
   if (requestedNote?.private && !revealedNotes.has(id)) {
     requestPrivateNoteAccess(id, 'edit');

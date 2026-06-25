@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "node build.js"
+    "build": "node build.js",
+    "dev": "npm run build && node dev-server.js"
   },
   "devDependencies": {
     "dotenv": "^16.4.5"
