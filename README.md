@@ -22,7 +22,7 @@ Gestor de Accesos permite:
 
 - Organización por sectores y servicios.
 - Compatible con CRMs, portales de formación, extranets y otras herramientas web.
-- URL de acceso, usuario, contraseña y observaciones.
+- URL de acceso, usuario, contraseña, persona de contacto, teléfono, email y observaciones.
 - Búsqueda, filtros y copia rápida de credenciales.
 - Normalización y validación de enlaces antes de abrirlos.
 

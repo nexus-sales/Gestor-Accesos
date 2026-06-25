@@ -39,8 +39,16 @@ async function generatePDF(dek, pdfPassword) {
   // Servicios (clave interna: crms)
   if (crms.length > 0) {
     y = addSection(doc, y, '1. Accesos a servicios', [28, 28, 26],
-      ['Sector', 'Servicio / Portal', 'URL', 'Usuario', 'Contraseña', 'Observaciones'],
-      crms.map(c => [c.sector||'—', c.marca||'—', c.url||'—', c.user||'—', c.pass||'—', c.obs||'—'])
+      ['Sector', 'Servicio / Portal', 'URL', 'Usuario', 'Contacto', 'Contraseña', 'Observaciones'],
+      crms.map(c => [
+        c.sector||'—',
+        c.marca||'—',
+        c.url||'—',
+        c.user||'—',
+        [c.contactPerson, c.contactPhone, c.contactEmail].filter(Boolean).join(' · ') || '—',
+        c.pass||'—',
+        c.obs||'—'
+      ])
     );
   }
 
@@ -48,8 +56,16 @@ async function generatePDF(dek, pdfPassword) {
   if (domains.length > 0) {
     if (y > 255) { doc.addPage(); y = 20; }
     y = addSection(doc, y, '2. Dominios y Emails', [80, 80, 78],
-      ['Proveedor', 'Dominio', 'URL', 'Email/Usuario', 'Contraseña', 'Observaciones'],
-      domains.map(d => [d.sector||'—', d.marca||'—', d.url||'—', d.user||'—', d.pass||'—', d.obs||'—'])
+      ['Proveedor', 'Dominio', 'URL', 'Email/Usuario', 'Contacto', 'Contraseña', 'Observaciones'],
+      domains.map(d => [
+        d.sector||'—',
+        d.marca||'—',
+        d.url||'—',
+        d.user||'—',
+        [d.contactPerson, d.contactPhone, d.contactEmail].filter(Boolean).join(' · ') || '—',
+        d.pass||'—',
+        d.obs||'—'
+      ])
     );
   }
 

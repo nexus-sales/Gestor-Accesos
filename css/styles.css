@@ -478,6 +478,19 @@ body {
   margin-bottom: 3px; text-transform: uppercase; letter-spacing: .07em; font-weight: 600;
 }
 .crm-field-val { font-size: 13px; color: var(--text-2); display: flex; align-items: center; gap: 4px; }
+.crm-contact {
+  display: flex; flex-wrap: wrap; gap: 7px 12px;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 0.5px solid var(--border);
+}
+.crm-contact span,
+.crm-contact a {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--text-3); font-size: 12px; line-height: 1.35;
+  text-decoration: none;
+}
+.crm-contact a:hover { color: var(--accent); }
+.crm-contact i { font-size: 13px; }
 
 .toggle-pass,
 .copy-field {
@@ -532,6 +545,7 @@ body {
 .form-group textarea { height: 84px; padding: 10px 12px; resize: vertical; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-row.single-field { grid-template-columns: 1fr; }
+#rowContact .form-group:last-child { grid-column: 1 / -1; }
 .required { color: var(--danger-txt); }
 
 .pass-wrap { position: relative; }

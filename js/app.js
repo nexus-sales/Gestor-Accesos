@@ -152,6 +152,9 @@ function openModal(id) {
       document.getElementById('fUser').value   = entryData.user || '';
       document.getElementById('fPass').value   = entryData.pass || '';
       document.getElementById('fObs').value    = currentTab === 'notes' ? (noteData.content || '') : (entryData.obs || '');
+      document.getElementById('fContactPerson').value = entry.contactPerson || '';
+      document.getElementById('fContactPhone').value  = entry.contactPhone || '';
+      document.getElementById('fServiceEmail').value   = entry.contactEmail || '';
       if (currentTab === 'private') {
         document.getElementById('fPrivateCategory').value = entry.category || 'other';
         configurePrivateCategory();
@@ -168,7 +171,7 @@ function openModal(id) {
       }
     }
   } else {
-    ['fSector','fMarca','fUrl','fUser','fPass','fObs','fTags','fCompany','fPhone','fContactEmail'].forEach(f => {
+    ['fSector','fMarca','fUrl','fUser','fPass','fObs','fTags','fCompany','fPhone','fContactEmail','fContactPerson','fContactPhone','fServiceEmail'].forEach(f => {
       const el = document.getElementById(f);
       if (el) el.value = '';
     });
@@ -220,12 +223,14 @@ function configureModalFields() {
   const fUser     = document.getElementById('fUser');
   const rowSectorMarca = document.getElementById('rowSectorMarca');
   const rowCredentials = document.getElementById('rowCredentials');
+  const rowContact = document.getElementById('rowContact');
   const grpNoteFields = document.getElementById('grpNoteFields');
   const grpPrivateCategory = document.getElementById('grpPrivateCategory');
   const lblObs = document.getElementById('lblObs');
   const lblPass = document.getElementById('lblPass');
 
   rowCredentials.classList.remove('hidden');
+  rowContact.classList.remove('hidden');
   grpNoteFields.classList.add('hidden');
   grpPrivateCategory.classList.add('hidden');
   lblObs.textContent = 'Observaciones';
@@ -255,6 +260,7 @@ function configureModalFields() {
     fUser.placeholder   = 'admin@mi-web.com';
   } else if (currentTab === 'private') {
     grpSector.classList.add('hidden'); grpUrl.classList.add('hidden');
+    rowContact.classList.add('hidden');
     grpPrivateCategory.classList.remove('hidden');
     lblMarca.innerHTML  = 'Servicio / Título <span class="required">*</span>';
     fMarca.placeholder  = 'ej. Banco, Correo, App';
@@ -263,7 +269,7 @@ function configureModalFields() {
     configurePrivateCategory();
   } else {
     grpSector.classList.add('hidden'); grpUrl.classList.add('hidden');
-    rowCredentials.classList.add('hidden'); grpNoteFields.classList.remove('hidden');
+    rowCredentials.classList.add('hidden'); rowContact.classList.add('hidden'); grpNoteFields.classList.remove('hidden');
     lblMarca.innerHTML = 'Título <span class="required">*</span>';
     fMarca.placeholder = 'ej. Alta de un nuevo cliente';
     lblObs.innerHTML = 'Contenido <span class="required">*</span>';
@@ -352,6 +358,9 @@ async function saveEntry() {
     url,
     user:    document.getElementById('fUser').value.trim(),
     pass:    document.getElementById('fPass').value.trim(),
+    contactPerson: document.getElementById('fContactPerson').value.trim(),
+    contactPhone:  document.getElementById('fContactPhone').value.trim(),
+    contactEmail:  document.getElementById('fServiceEmail').value.trim(),
     obs:     document.getElementById('fObs').value.trim(),
     created: Date.now()
   };
@@ -610,7 +619,7 @@ function render() {
 
 function renderList(items, q, fs, singular, plural) {
   const filtered = items.filter(c => {
-    const text  = [c.sector, c.marca, c.url, c.user, c.obs].join(' ').toLowerCase();
+    const text  = [c.sector, c.marca, c.url, c.user, c.contactPerson, c.contactPhone, c.contactEmail, c.obs].join(' ').toLowerCase();
     return (!q || text.includes(q)) && (!fs || c.sector === fs);
   });
 
@@ -964,6 +973,11 @@ function buildCard(c, isPrivate = false) {
   const accentClass = isPrivate ? '' : getSectorColor(c.sector);
   const normalizedUrl = normalizeUrl(c.url);
   const url = normalizedUrl && isAllowedUrl(normalizedUrl) ? normalizedUrl : '';
+  const contactMeta = [c.contactPerson, c.contactPhone, c.contactEmail].some(Boolean) ? `<div class="crm-contact">
+    ${c.contactPerson ? `<span><i class="ti ti-user"></i>${esc(c.contactPerson)}</span>` : ''}
+    ${c.contactPhone ? `<a href="tel:${escAttr(c.contactPhone)}"><i class="ti ti-phone"></i>${esc(c.contactPhone)}</a>` : ''}
+    ${c.contactEmail ? `<a href="mailto:${escAttr(c.contactEmail)}"><i class="ti ti-mail"></i>${esc(c.contactEmail)}</a>` : ''}
+  </div>` : '';
   return `<article class="crm-card ${accentClass}"${border}>
     <div class="crm-card-header">
       <span class="crm-brand">${esc(c.marca)}</span>
@@ -1005,6 +1019,7 @@ function buildCard(c, isPrivate = false) {
         </div>
       </div>
     </div>
+    ${contactMeta}
     ${c.obs ? `<div class="crm-obs">${esc(c.obs)}</div>` : ''}
   </article>`;
 }
