@@ -342,7 +342,8 @@ function lockVault() {
 
 function clearVaultData() {
   clearAllPrivateNoteAccess();
-  crms = []; domains = []; privateItems = []; notes = [];
+  crms = []; domains = []; privateItems = []; notes = []; folders = [];
+  currentFolderId = null;
   vaultPassword = null;
   vaultKey = null;
   visiblePass = {};

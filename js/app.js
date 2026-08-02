@@ -1,6 +1,6 @@
 // Lógica principal: tabs, CRUD, renderizado
 
-let crms = [], domains = [], privateItems = [], notes = [];
+let crms = [], domains = [], privateItems = [], notes = [], folders = [];
 let currentTab  = 'crms';
 let editingId   = null;
 let visiblePass = {};
@@ -76,6 +76,7 @@ function buildColorMap() {
 // ── Tabs ─────────────────────────────────────────────────────
 
 function switchTab(tabId) {
+  if (tabId !== 'notes') currentFolderId = null;
   currentTab = tabId;
   document.querySelectorAll('.nav-item').forEach(b => {
     b.classList.toggle('active', b.id === 'tab-' + tabId);
@@ -181,6 +182,13 @@ function openModal(id) {
     document.getElementById('fPrivateCategory').value = 'other';
     configurePrivateCategory();
     configureNoteType();
+  }
+
+  if (currentTab === 'notes') {
+    const folderId = id
+      ? (notes.find(n => n.id === id)?.folderId || '')
+      : (currentFolderId || '');
+    populateFolderSelect(folderId);
   }
 
   document.getElementById('fPass').type = 'password';
@@ -446,6 +454,7 @@ async function saveNoteEntry() {
   const entry = {
     id: editingId || crypto.randomUUID(),
     type,
+    folderId: document.getElementById('fNoteFolder').value || null,
     pinned: document.getElementById('fPinned').checked,
     private: isPrivate,
     created: previous?.created || Date.now(),
@@ -727,6 +736,7 @@ function buildPrivateCard(item, categories) {
 }
 
 function renderNotes(q, typeFilter) {
+  renderFolderBar();
   const typeLabels = { procedure: 'Procedimientos', contact: 'Contactos', general: 'Notas generales', learning: 'Aprendizaje' };
   const filter = document.getElementById('filterSector');
   filter.innerHTML = '<option value="">Todas las notas</option>' +
@@ -735,7 +745,8 @@ function renderNotes(q, typeFilter) {
     const view = revealedNotes.get(note.id)?.data || note;
     const haystack = [view.title, view.content, typeLabels[note.type], view.company, view.phone, view.email, ...(view.tags || []), note.private ? 'privada' : '']
       .join(' ').toLowerCase();
-    return (!q || haystack.includes(q)) && (!typeFilter || note.type === typeFilter);
+    const inFolder = !currentFolderId || note.folderId === currentFolderId;
+    return (!q || haystack.includes(q)) && (!typeFilter || note.type === typeFilter) && inFolder;
   });
   const pinnedCount = notes.filter(note => note.pinned).length;
   document.getElementById('statusBar').innerHTML =

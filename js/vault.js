@@ -67,6 +67,7 @@ async function loadVault() {
   domains      = Array.isArray(payload.domains)      ? payload.domains      : [];
   privateItems = Array.isArray(payload.privateItems) ? payload.privateItems : [];
   notes        = Array.isArray(payload.notes)        ? payload.notes        : [];
+  folders      = Array.isArray(payload.folders)      ? payload.folders      : [];
 
   const itemsUpgraded = await protectLegacyPrivateItems();
   if (itemsUpgraded) await saveVault();
@@ -80,7 +81,7 @@ async function saveVault() {
 
   setSyncStatus('syncing');
   try {
-    const payload   = JSON.stringify({ crms, domains, privateItems, notes });
+    const payload   = JSON.stringify({ crms, domains, privateItems, notes, folders });
     const encrypted = await encryptWithKey(payload, vaultKey);
     await apiVaultSave({ encrypted_data: encrypted });
     setSyncStatus('ok');
@@ -95,7 +96,7 @@ async function saveVault() {
 async function createVault(dek, master) {
   if (!(await hasAal2Session())) throw new Error('Verifica el 2FA antes de crear la bóveda');
 
-  const payload   = JSON.stringify({ crms: [], domains: [], privateItems: [], notes: [] });
+  const payload   = JSON.stringify({ crms: [], domains: [], privateItems: [], notes: [], folders: [] });
   const encrypted = await encryptWithKey(payload, dek);
   const wrapped   = await wrapDek(dek, master);
 

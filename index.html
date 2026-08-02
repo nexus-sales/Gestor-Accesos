@@ -417,6 +417,7 @@
     </header>
 
     <div class="content">
+      <div id="folder-bar" class="hidden"></div>
       <div id="statusBar" class="status-bar"></div>
       <div id="list"></div>
     </div>
@@ -470,8 +471,14 @@
         </div>
         <div class="form-group">
           <label for="fTags">Etiquetas <small>separadas por comas</small></label>
-          <input type="text" id="fTags" placeholder="Ventas, urgente, proveedor" />
+          <input type="text" id="fTags" placeholder="ia, aprendizaje, urgente" />
         </div>
+      </div>
+      <div class="form-group">
+        <label for="fNoteFolder">Carpeta</label>
+        <select id="fNoteFolder">
+          <option value="">Sin carpeta</option>
+        </select>
       </div>
       <label class="pin-control" for="fPinned">
         <input type="checkbox" id="fPinned" />
@@ -601,6 +608,27 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- Modal de carpeta (crear / renombrar) -->
+<div id="folder-modal" class="overlay hidden" aria-modal="true" role="dialog">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <h2 id="folder-modal-title">Nueva carpeta</h2>
+      <button type="button" id="folder-modal-close" class="icon-btn" aria-label="Cerrar">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+    <div class="form-group">
+      <label for="folder-name-input">Nombre <span class="required">*</span></label>
+      <input type="text" id="folder-name-input" placeholder="ej. IA, Proyectos, Personal…" maxlength="40" autocomplete="off" />
+    </div>
+    <div id="folder-modal-error" class="auth-error hidden"></div>
+    <div class="modal-footer">
+      <button type="button" id="folder-modal-cancel" class="btn">Cancelar</button>
+      <button type="button" id="folder-modal-save" class="btn primary"><i class="ti ti-check"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Panel de administración (overlay, solo visible para admins) -->
 <div id="admin-panel" class="overlay hidden" aria-modal="true" role="dialog" aria-label="Panel de administración">
   <div class="admin-modal">
@@ -658,6 +686,7 @@
 <script src="js/vault.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/markdown.js"></script>
+<script src="js/folders.js"></script>
 <script src="js/app.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/pdf.js"></script>
