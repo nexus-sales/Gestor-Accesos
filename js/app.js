@@ -10,6 +10,7 @@ const revealedNotes = new Map();
 const privateNoteTimers = new Map();
 const revealedPrivateItems = new Map();
 const privateItemTimers = new Map();
+const expandedNotes = new Set();
 
 const SECTOR_COLORS = ['sc-blue','sc-teal','sc-amber','sc-coral','sc-purple','sc-pink','sc-green','sc-red','sc-gray'];
 const sectorColorMap = {};
@@ -244,6 +245,7 @@ function configureModalFields() {
   lblObs.textContent = 'Observaciones';
   lblPass.textContent = 'Contraseña';
   document.getElementById('fObs').placeholder = 'Notas, módulos, permisos…';
+  document.getElementById('fObs').classList.remove('notes-obs');
   rowSectorMarca.classList.toggle('single-field', ['private', 'notes'].includes(currentTab));
 
   if (currentTab === 'crms') {
@@ -282,6 +284,7 @@ function configureModalFields() {
     fMarca.placeholder = 'ej. Alta de un nuevo cliente';
     lblObs.innerHTML = 'Contenido <span class="required">*</span>';
     document.getElementById('fObs').placeholder = 'Escribe aquí el procedimiento, datos de contacto o información útil…';
+    document.getElementById('fObs').classList.add('notes-obs');
     configureNoteType();
   }
 }
@@ -787,8 +790,11 @@ function buildNoteCard(note) {
     ${view.email ? `<a href="mailto:${escAttr(view.email)}"><i class="ti ti-mail"></i>${esc(view.email)}</a>` : ''}
   </div>` : '';
   const updated = new Date(note.updated || note.created || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  const contentRaw = view.content || '';
+  const isLong = contentRaw.length > 400 || (contentRaw.match(/\n/g) || []).length > 8;
+  const isExpanded = expandedNotes.has(note.id);
 
-  return `<article class="note-card ${typeClass}${isLocked ? ' note-locked' : ''}">
+  return `<article class="note-card ${typeClass}${isLocked ? ' note-locked' : ''}" data-id="${note.id}">
     <div class="note-card-top">
       <span class="note-type"><i class="ti ${typeIcon}"></i>${typeLabel}</span>
       <div class="crm-actions">
@@ -805,9 +811,23 @@ function buildNoteCard(note) {
       <i class="ti ti-shield-lock"></i>
       <p>El contenido está cifrado y oculto.</p>
       <button type="button" class="btn" data-action="request-private-note" data-id="${note.id}" data-kind="reveal"><i class="ti ti-lock-open"></i> Desbloquear</button>
-    </div>` : `<div class="note-content md-content">${renderMarkdown(view.content)}</div>`}
+    </div>` : `<div class="note-content md-content${isExpanded ? ' expanded' : ''}">${renderMarkdown(contentRaw)}</div>
+    ${isLong ? `<button type="button" class="note-expand-btn" data-action="toggle-expand-note" data-id="${note.id}">
+      <i class="ti ti-chevron-${isExpanded ? 'up' : 'down'}"></i> ${isExpanded ? 'Ver menos' : 'Ver más'}
+    </button>` : ''}`}
     <footer class="note-footer"><div class="note-tags">${tags}</div><time>${updated}</time></footer>
   </article>`;
+}
+
+function toggleNoteExpand(id) {
+  if (expandedNotes.has(id)) expandedNotes.delete(id);
+  else expandedNotes.add(id);
+  const card = document.querySelector(`.note-card[data-id="${id}"]`);
+  if (!card) return;
+  const isNowExpanded = expandedNotes.has(id);
+  card.querySelector('.note-content')?.classList.toggle('expanded', isNowExpanded);
+  const btn = card.querySelector('.note-expand-btn');
+  if (btn) btn.innerHTML = `<i class="ti ti-chevron-${isNowExpanded ? 'up' : 'down'}"></i> ${isNowExpanded ? 'Ver menos' : 'Ver más'}`;
 }
 
 async function copyNoteContent(id) {
