@@ -47,7 +47,7 @@ function showView(name) {
 async function initApp() {
   showLoading();
   try {
-    const { data: { session } } = await sb.auth.getSession();
+    const { session } = await apiGetSession();
 
     if (!session) { showAuth('login'); return; }
 
@@ -83,10 +83,8 @@ async function onLogin(e) {
   hideMsg('lError');
 
   try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-    if (error) throw error;
-
-    currentUser = data.user;
+    const { user } = await apiLogin(email, pass);
+    currentUser = user;
 
     const factors = await getVerifiedTotpFactors();
     if (factors.length === 0) {
@@ -119,15 +117,8 @@ async function onRegister(e) {
   hideMsg('rError'); hideMsg('rInfo');
 
   try {
-    const { data, error } = await sb.auth.signUp({ email, password: pass1 });
-    if (error) throw error;
-
-    if (data.user && !data.session) {
-      showMsg('rInfo', `Confirma tu email en ${email} y vuelve a iniciar sesión.`);
-      return;
-    }
-
-    currentUser = data.user;
+    const { user } = await apiRegister(email, pass1);
+    currentUser = user;
 
     await startEnrollment();
     showAuth('mfa-enroll');
@@ -148,12 +139,7 @@ async function onMfaVerify(e) {
   hideMsg('mfaError');
 
   try {
-    const { error } = await sb.auth.mfa.verify({
-      factorId: pendingFactorId,
-      challengeId: pendingChallengeId,
-      code
-    });
-    if (error) throw error;
+    await apiMfaVerify(pendingFactorId, pendingChallengeId, code);
     await requireAal2Session();
     await initUnlockFlow();
   } catch (err) {
@@ -173,13 +159,8 @@ async function onMfaEnroll(e) {
   hideMsg('enrollError');
 
   try {
-    const { data: challenge } = await sb.auth.mfa.challenge({ factorId: enrollingFactorId });
-    const { error } = await sb.auth.mfa.verify({
-      factorId: enrollingFactorId,
-      challengeId: challenge.id,
-      code
-    });
-    if (error) throw error;
+    const { id: challengeId } = await apiMfaChallenge(enrollingFactorId);
+    await apiMfaVerify(enrollingFactorId, challengeId, code);
     await requireAal2Session();
 
     showToast('2FA activado correctamente');
@@ -222,7 +203,7 @@ async function onUnlock(e) {
       await migrateToDek(pass); // atómico; setea vaultKey + vars globales
     }
 
-    await loadVaultFromSupabase();
+    await loadVault();
     showApp();
     resetInactivity();
     migrateLocalVault(pass);
@@ -241,10 +222,6 @@ async function initUnlockFlow() {
   document.getElementById('unlockEmail').textContent = currentUser?.email || '';
   const { wrappedDek, hasVault, hasLegacyMaster } = await fetchMasterVerifier();
   cachedHasLegacyMaster = hasLegacyMaster;
-  // Path 1: wrapped_dek → unlock normal
-  // Path 2: sin wrapped_dek + vault + master_verifier → unlock (migración transparente)
-  // Path 3: sin wrapped_dek + vault + sin master_verifier → migrate
-  // Path 4: sin vault → create-master
   if (wrappedDek || (hasVault && hasLegacyMaster)) {
     showAuth('unlock');
     const showPasskey = cachedPasskeySlots.length > 0
@@ -274,7 +251,7 @@ async function onCreateMaster(e) {
     const dek = crypto.getRandomValues(new Uint8Array(32));
     vaultKey = dek;
     crms = []; domains = []; privateItems = []; notes = [];
-    await createVaultInSupabase(dek, pass1);
+    await createVault(dek, pass1);
     showApp();
     resetInactivity();
     migrateLocalVault(pass1);
@@ -299,7 +276,7 @@ async function onMigrate(e) {
 
   setBtnLoading('migBtn', true);
   try {
-    await migrateToMasterPasswordAndDek(oldPass, pass1); // atómico; setea vaultKey + vars globales
+    await migrateToMasterPasswordAndDek(oldPass, pass1);
     showApp();
     resetInactivity();
     migrateLocalVault(pass1);
@@ -327,7 +304,7 @@ async function onUnlockWithPasskey(e) {
   try {
     if (!(await ensureMfaSatisfied())) return;
     await unlockWithPasskey(pass);      // setea vaultKey
-    await loadVaultFromSupabase();
+    await loadVault();
     showApp();
     resetInactivity();
     migrateLocalVault(pass);
@@ -343,7 +320,7 @@ async function onUnlockWithPasskey(e) {
 
 async function onLogout(silent = false) {
   clearVaultData();
-  await sb.auth.signOut();
+  await apiLogout();
   currentUser = null;
   if (!silent) showToast('Sesión cerrada');
   showAuth('login');
@@ -399,10 +376,10 @@ document.addEventListener('click', e => {
 async function openTwoFASettings() {
   closeMenu();
   closeMobileMenu();
-  const { data: factors } = await sb.auth.mfa.listFactors();
-  const totp = getVerifiedFromList(factors?.totp ?? []);
+  const { totp } = await apiMfaListFactors();
+  const verified = getVerifiedFromList(totp ?? []);
 
-  if (totp.length > 0) {
+  if (verified.length > 0) {
     alert('2FA es obligatorio para proteger la bóveda. No se puede desactivar desde la app.');
   } else {
     const ok = confirm('¿Activar la autenticación en dos pasos (2FA)?');
@@ -435,23 +412,21 @@ async function ensureMfaSatisfied() {
 }
 
 async function hasAal2Session() {
-  const { data: aal, error } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (error) throw error;
-  return aal?.currentLevel === 'aal2';
+  const { currentLevel } = await apiMfaGetAal();
+  return currentLevel === 'aal2';
 }
 
 async function requireAal2Session() {
   if (await hasAal2Session()) return;
-  await sb.auth.refreshSession();
+  await apiRefreshSession();
   if (!(await hasAal2Session())) {
     throw new Error('La sesión todavía no está verificada con 2FA. Vuelve a intentarlo.');
   }
 }
 
 async function getVerifiedTotpFactors() {
-  const { data: factors, error } = await sb.auth.mfa.listFactors();
-  if (error) throw error;
-  return getVerifiedFromList(factors?.totp ?? []);
+  const { totp } = await apiMfaListFactors();
+  return getVerifiedFromList(totp ?? []);
 }
 
 function getVerifiedFromList(factors) {
@@ -462,17 +437,12 @@ async function beginMfaChallenge(knownFactors) {
   const totp = knownFactors || await getVerifiedTotpFactors();
   if (totp.length === 0) return;
   pendingFactorId = totp[0].id;
-  const { data: ch, error } = await sb.auth.mfa.challenge({ factorId: pendingFactorId });
-  if (error) throw error;
-  pendingChallengeId = ch.id;
+  const { id } = await apiMfaChallenge(pendingFactorId);
+  pendingChallengeId = id;
 }
 
 async function startEnrollment() {
-  const { data, error } = await sb.auth.mfa.enroll({
-    factorType: 'totp',
-    issuer: 'Gestor de Accesos'
-  });
-  if (error) throw error;
+  const data = await apiMfaEnroll();
 
   enrollingFactorId = data.id;
 
@@ -545,6 +515,7 @@ function authError(msg) {
     'Invalid login credentials': 'Email o contraseña incorrectos.',
     'Email not confirmed': 'Confirma tu email antes de iniciar sesión.',
     'User already registered': 'Este email ya está registrado.',
+    'Este email ya está registrado.': 'Este email ya está registrado.',
   };
   return map[msg] ?? msg;
 }

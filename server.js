@@ -1,7 +1,8 @@
 'use strict';
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
+const http             = require('http');
+const fs               = require('fs');
+const path             = require('path');
+const { handleApi }    = require('./api/index.js');
 
 const PORT = Number(process.env.PORT) || 3000;
 // 0.0.0.0 es obligatorio en Docker: Traefik (u otro proxy) corre en una red
@@ -20,9 +21,8 @@ const MIME = {
   '.webp': 'image/webp',
 };
 
-// env.js contiene las claves de Supabase bakeadas en build; index.html es el
-// punto de entrada — ambos deben llegar siempre frescos al cliente.
-const NO_STORE = new Set(['/index.html', '/js/env.js']);
+// index.html es el punto de entrada — siempre debe llegar fresco al cliente.
+const NO_STORE = new Set(['/index.html']);
 
 function cacheControl(urlPath) {
   if (NO_STORE.has(urlPath))            return 'no-store';
@@ -48,6 +48,12 @@ const server = http.createServer((req, res) => {
   } catch {
     res.writeHead(400, SECURITY_HEADERS).end('Bad request');
     return;
+  }
+
+  // Rutas de API — delegadas al handler de api/index.js
+  if (pathname.startsWith('/api/')) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return handleApi(req, res, pathname);
   }
 
   const urlPath  = pathname === '/' ? '/index.html' : pathname;

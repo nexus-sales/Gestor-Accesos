@@ -1,4 +1,4 @@
-// Operaciones de bóveda — carga y guardado en Supabase (datos siempre cifrados)
+// Operaciones de bóveda — carga y guardado en la API propia (datos siempre cifrados)
 
 let cachedVerifier    = null; // master_verifier legacy (para chequeo de Path 2)
 let cachedWrappedDek  = null; // wrapped_dek: DEK envuelta con la maestra
@@ -18,18 +18,11 @@ async function unwrapDek(wrapped, master) {
 // ── Meta de la bóveda ─────────────────────────────────────────
 
 async function fetchMasterVerifier() {
-  const { data, error } = await sb
-    .from('vaults_ga')
-    .select('wrapped_dek, master_verifier, encrypted_data, passkey_slots')
-    .eq('user_id', currentUser.id)
-    .single();
+  const { data } = await apiVaultGet();
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      cachedPasskeySlots = [];
-      return { wrappedDek: null, hasVault: false, hasLegacyMaster: false };
-    }
-    throw error;
+  if (!data) {
+    cachedPasskeySlots = [];
+    return { wrappedDek: null, hasVault: false, hasLegacyMaster: false };
   }
 
   cachedWrappedDek   = data.wrapped_dek;
@@ -53,22 +46,15 @@ async function checkMasterVerifier(pass) {
 
 // ── Carga ─────────────────────────────────────────────────────
 
-async function loadVaultFromSupabase() {
+async function loadVault() {
   if (!currentUser || !vaultKey) throw new Error('Sin autenticación');
   if (!(await hasAal2Session())) throw new Error('Verifica el 2FA antes de acceder a la bóveda');
 
-  const { data, error } = await sb
-    .from('vaults_ga')
-    .select('encrypted_data')
-    .eq('user_id', currentUser.id)
-    .single();
+  const { data } = await apiVaultGet();
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      crms = []; domains = []; privateItems = []; notes = [];
-      return;
-    }
-    throw error;
+  if (!data || !data.encrypted_data) {
+    crms = []; domains = []; privateItems = []; notes = [];
+    return;
   }
 
   if (!data.encrypted_data.startsWith('k1:')) {
@@ -83,12 +69,12 @@ async function loadVaultFromSupabase() {
   notes        = Array.isArray(payload.notes)        ? payload.notes        : [];
 
   const itemsUpgraded = await protectLegacyPrivateItems();
-  if (itemsUpgraded) await saveVaultToSupabase();
+  if (itemsUpgraded) await saveVault();
 }
 
 // ── Guardado normal (no toca wrapped_dek ni master_verifier) ──
 
-async function saveVaultToSupabase() {
+async function saveVault() {
   if (!currentUser || !vaultKey) return;
   if (!(await hasAal2Session())) throw new Error('Verifica el 2FA antes de sincronizar la bóveda');
 
@@ -96,12 +82,7 @@ async function saveVaultToSupabase() {
   try {
     const payload   = JSON.stringify({ crms, domains, privateItems, notes });
     const encrypted = await encryptWithKey(payload, vaultKey);
-
-    const { error } = await sb.from('vaults_ga').upsert(
-      { user_id: currentUser.id, encrypted_data: encrypted, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' }
-    );
-    if (error) throw error;
+    await apiVaultSave({ encrypted_data: encrypted });
     setSyncStatus('ok');
   } catch (err) {
     setSyncStatus('error');
@@ -111,28 +92,22 @@ async function saveVaultToSupabase() {
 
 // ── Primer upsert (creación de bóveda nueva) ──────────────────
 
-async function createVaultInSupabase(dek, master) {
+async function createVault(dek, master) {
   if (!(await hasAal2Session())) throw new Error('Verifica el 2FA antes de crear la bóveda');
 
   const payload   = JSON.stringify({ crms: [], domains: [], privateItems: [], notes: [] });
   const encrypted = await encryptWithKey(payload, dek);
   const wrapped   = await wrapDek(dek, master);
 
-  const { error } = await sb.from('vaults_ga').upsert(
-    {
-      user_id:         currentUser.id,
-      encrypted_data:  encrypted,
-      wrapped_dek:     wrapped,
-      master_verifier: null,
-      updated_at:      new Date().toISOString()
-    },
-    { onConflict: 'user_id' }
-  );
-  if (error) throw error;
+  await apiVaultSave({
+    encrypted_data:  encrypted,
+    wrapped_dek:     wrapped,
+    master_verifier: null,
+  });
   cachedWrappedDek = wrapped;
 }
 
-// ── Migración local (localStorage -> Supabase) ────────────────
+// ── Migración local (localStorage -> API) ────────────────────
 
 async function migrateLocalVault(masterPass = null) {
   const LOCAL_VAULT  = 'crm_manager_v2_vault_data';
@@ -165,7 +140,7 @@ async function migrateLocalVault(masterPass = null) {
 
     await protectLegacyPrivateItems(); // cifra items en claro con la DEK
 
-    await saveVaultToSupabase();
+    await saveVault();
 
     ['crm_manager_v2_vault_data','crm_manager_v1_private_verify',
      'crm_manager_v1','crm_manager_v1_domains','crm_manager_v1_private_data']
@@ -213,15 +188,11 @@ async function protectLegacyPrivateItems() {
 
 // ── Migración a DEK (Path 2: vault v2 con master_verifier) ────
 // Atómica: no escribe nada hasta tener todos los blobs. Ante cualquier
-// fallo antes del upsert, vaultKey queda null y la fila de Supabase intacta.
+// fallo antes del guardado, vaultKey queda null y la fila en BD intacta.
 
 async function migrateToDek(master) {
-  const { data, error } = await sb
-    .from('vaults_ga')
-    .select('encrypted_data')
-    .eq('user_id', currentUser.id)
-    .single();
-  if (error) throw error;
+  const { data } = await apiVaultGet();
+  if (!data) throw new Error('No se encontró la bóveda.');
 
   let payload;
   try {
@@ -251,18 +222,12 @@ async function migrateToDek(master) {
   const newEncrypted = await encryptWithKey(JSON.stringify(newPayload), dek);
   const wrapped      = await wrapDek(dek, master);
 
-  // Upsert atómico — solo cuando todos los blobs están listos
-  const { error: saveError } = await sb.from('vaults_ga').upsert(
-    {
-      user_id:         currentUser.id,
-      encrypted_data:  newEncrypted,
-      wrapped_dek:     wrapped,
-      master_verifier: null,
-      updated_at:      new Date().toISOString()
-    },
-    { onConflict: 'user_id' }
-  );
-  if (saveError) throw saveError;
+  // Guardado atómico — solo cuando todos los blobs están listos
+  await apiVaultSave({
+    encrypted_data:  newEncrypted,
+    wrapped_dek:     wrapped,
+    master_verifier: null,
+  });
 
   // Solo tras éxito persistimos en memoria
   vaultKey         = dek;
@@ -279,12 +244,8 @@ async function migrateToDek(master) {
 async function migrateToMasterPasswordAndDek(accountPass, masterPass) {
   setSyncStatus('syncing');
 
-  const { data, error } = await sb
-    .from('vaults_ga')
-    .select('encrypted_data')
-    .eq('user_id', currentUser.id)
-    .single();
-  if (error) { setSyncStatus('error'); throw error; }
+  const { data } = await apiVaultGet();
+  if (!data) { setSyncStatus('error'); throw new Error('No se encontró la bóveda.'); }
 
   let payload;
   try {
@@ -313,19 +274,18 @@ async function migrateToMasterPasswordAndDek(accountPass, masterPass) {
   };
 
   const newEncrypted = await encryptWithKey(JSON.stringify(newPayload), dek);
-  const wrapped      = await wrapDek(dek, masterPass); // 1 Argon2id con la nueva maestra
+  const wrapped      = await wrapDek(dek, masterPass);
 
-  const { error: saveError } = await sb.from('vaults_ga').upsert(
-    {
-      user_id:         currentUser.id,
+  try {
+    await apiVaultSave({
       encrypted_data:  newEncrypted,
       wrapped_dek:     wrapped,
       master_verifier: null,
-      updated_at:      new Date().toISOString()
-    },
-    { onConflict: 'user_id' }
-  );
-  if (saveError) { setSyncStatus('error'); throw saveError; }
+    });
+  } catch (err) {
+    setSyncStatus('error');
+    throw err;
+  }
 
   cachedWrappedDek = wrapped;
   vaultKey         = dek;
@@ -386,7 +346,7 @@ async function _reencryptNotes(notes, oldPass, dek) {
 // )
 // wrappedDek = encryptWithKey(base64(DEK), Kwrap)
 //
-// Solo wrappedDek, credentialId, prfSalt y masterSalt van a Supabase.
+// Solo wrappedDek, credentialId, prfSalt y masterSalt van a la API.
 // La maestra y el prfSecret NUNCA salen del cliente.
 
 async function buildPasskeyKwrap(master, prfSecret, prfSalt, masterSalt) {
@@ -422,12 +382,7 @@ async function addPasskeySlot(master) {
 
   const updated = [...cachedPasskeySlots, slot];
 
-  const { error } = await sb.from('vaults_ga').upsert(
-    { user_id: currentUser.id, passkey_slots: updated, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id' }
-  );
-  if (error) throw error;
-
+  await apiVaultSave({ passkey_slots: updated });
   cachedPasskeySlots = updated;
 }
 
@@ -438,12 +393,7 @@ async function removePasskeySlot(credentialId) {
     throw new Error('No puedes eliminar el último passkey sin un slot de contraseña maestra.');
   }
 
-  const { error } = await sb.from('vaults_ga').upsert(
-    { user_id: currentUser.id, passkey_slots: filtered, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id' }
-  );
-  if (error) throw error;
-
+  await apiVaultSave({ passkey_slots: filtered });
   cachedPasskeySlots = filtered;
 }
 
@@ -458,5 +408,5 @@ async function unlockWithPasskey(master) {
   const kwrapBytes = await buildPasskeyKwrap(master, prfSecret, slot.prfSalt, slot.masterSalt);
   const dekB64     = await decryptWithKey(slot.wrappedDek, kwrapBytes);
   vaultKey = new Uint8Array(b64ToBuf(dekB64));
-  // loadVaultFromSupabase lo llama el caller (auth.js)
+  // loadVault() lo llama el caller (auth.js)
 }

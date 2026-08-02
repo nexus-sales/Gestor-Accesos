@@ -5,9 +5,14 @@
   "scripts": {
     "build": "node build.js",
     "start": "node server.js",
-    "dev": "npm run build && node dev-server.js"
+    "dev": "node dev-server.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5"
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "jsonwebtoken": "^9.0.2",
+    "otplib": "^12.0.1",
+    "pg": "^8.13.1",
+    "qrcode": "^1.5.4"
   }
 }
