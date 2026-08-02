@@ -1,5 +1,6 @@
-// Lee .env en local; en Vercel usa las variables del dashboard
-require('dotenv').config();
+// Carga .env si existe (desarrollo local). En Dokploy/Vercel las variables
+// vienen de la plataforma — dotenv no encuentra archivo y no hace nada.
+try { require('dotenv').config(); } catch (_) {}
 const fs = require('fs');
 
 const url = process.env.SUPABASE_URL;

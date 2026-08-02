@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "build": "node build.js",
+    "start": "node server.js",
     "dev": "npm run build && node dev-server.js"
   },
-  "devDependencies": {
+  "dependencies": {
     "dotenv": "^16.4.5"
   }
 }
