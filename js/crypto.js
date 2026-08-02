@@ -1,5 +1,5 @@
 // Cifrado AES-GCM + derivación de clave
-// Los datos NUNCA se envían sin cifrar a Supabase (zero-knowledge)
+// Los datos NUNCA salen del cliente sin cifrar (zero-knowledge)
 //
 // Formato de envelope:
 //   v1 (legacy, solo lectura): base64(salt[16] | iv[12] | ciphertext[n])
@@ -143,7 +143,7 @@ async function decryptData(ciphertextB64, password) {
   }
 }
 
-// Compatibilidad de lectura con la bóveda local anterior a la migración a Supabase.
+// Compatibilidad de lectura con la bóveda local v1 (formato anterior al sistema actual).
 // Solo se usa para importar; todos los datos nuevos siguen cifrándose con encryptData (v2).
 async function decryptLegacyLocalData(ciphertextB64, password) {
   try {

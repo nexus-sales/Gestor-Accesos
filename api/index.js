@@ -121,6 +121,14 @@ function needAal2(req) {
   return s;
 }
 
+function needAdmin(req) {
+  const s = needAal2(req);
+  if (!s.is_admin) { const e = new Error('Acceso denegado'); e.status = 403; throw e; }
+  return s;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ── Router ────────────────────────────────────────────────────
 
 async function handleApi(req, res, pathname) {
@@ -138,6 +146,12 @@ async function handleApi(req, res, pathname) {
     if (pathname === '/api/auth/mfa/verify'    && m === 'POST') return await mfaVerify(req, res);
     if (pathname === '/api/vault'              && m === 'GET')  return await vaultGet(req, res);
     if (pathname === '/api/vault'              && m === 'PUT')  return await vaultSave(req, res);
+    if (pathname === '/api/admin/users'        && m === 'GET')  return await adminListUsers(req, res);
+    const adminUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (adminUserMatch) {
+      if (m === 'PATCH')  return await adminPatchUser(req, res, adminUserMatch[1]);
+      if (m === 'DELETE') return await adminDeleteUser(req, res, adminUserMatch[1]);
+    }
     fail(res, 404, 'Ruta no encontrada');
   } catch (e) {
     if (e.status) {
@@ -170,8 +184,8 @@ async function register(req, res) {
     throw e;
   }
 
-  const token = sign({ sub: user.id, email: user.email, aal: 'aal1' });
-  send(res, 201, { user: { id: user.id, email: user.email } },
+  const token = sign({ sub: user.id, email: user.email, aal: 'aal1', is_admin: false });
+  send(res, 201, { user: { id: user.id, email: user.email, is_admin: false } },
     { 'Set-Cookie': setCookieHeader(token) });
 }
 
@@ -187,8 +201,8 @@ async function login(req, res) {
   rateCheck(`login:email:${emailNorm}`,   5, 15 * 60 * 1000); // 5 intentos/cuenta/15min
 
   const { rows } = await pool.query(
-    'SELECT id, email, pass_hash FROM users WHERE email = $1',
-    [email.toLowerCase().trim()]
+    'SELECT id, email, pass_hash, is_blocked, is_admin FROM users WHERE email = $1',
+    [emailNorm]
   );
 
   // bcrypt.compare siempre se ejecuta para evitar timing attacks
@@ -198,9 +212,11 @@ async function login(req, res) {
 
   if (!valid || !rows[0]) return fail(res, 401, 'Invalid login credentials');
 
-  const user  = rows[0];
-  const token = sign({ sub: user.id, email: user.email, aal: 'aal1' });
-  send(res, 200, { user: { id: user.id, email: user.email } },
+  const user = rows[0];
+  if (user.is_blocked) return fail(res, 403, 'Tu cuenta ha sido suspendida. Contacta con el administrador.');
+
+  const token = sign({ sub: user.id, email: user.email, aal: 'aal1', is_admin: user.is_admin });
+  send(res, 200, { user: { id: user.id, email: user.email, is_admin: user.is_admin } },
     { 'Set-Cookie': setCookieHeader(token) });
 }
 
@@ -215,15 +231,15 @@ async function logout(req, res) {
 async function session(req, res) {
   const s = parseSession(req);
   if (!s) return send(res, 200, { session: null });
-  send(res, 200, { session: { user: { id: s.sub, email: s.email }, aal: s.aal } });
+  send(res, 200, { session: { user: { id: s.sub, email: s.email, is_admin: s.is_admin ?? false }, aal: s.aal } });
 }
 
 // ── Auth: refrescar sesión (renueva TTL, mantiene AAL) ────────
 
 async function refresh(req, res) {
   const s     = needSession(req);
-  const token = sign({ sub: s.sub, email: s.email, aal: s.aal });
-  send(res, 200, { session: { user: { id: s.sub, email: s.email }, aal: s.aal } },
+  const token = sign({ sub: s.sub, email: s.email, aal: s.aal, is_admin: s.is_admin ?? false });
+  send(res, 200, { session: { user: { id: s.sub, email: s.email, is_admin: s.is_admin ?? false }, aal: s.aal } },
     { 'Set-Cookie': setCookieHeader(token) });
 }
 
@@ -347,6 +363,55 @@ async function vaultSave(req, res) {
       updated_at = now()
   `, [s.sub, ...vals]);
 
+  send(res, 200, {});
+}
+
+// ── Admin: listar usuarios ────────────────────────────────────
+// Devuelve id, email, fecha de registro, estado bloqueado/admin.
+// Nunca devuelve pass_hash ni datos de la bóveda.
+
+async function adminListUsers(req, res) {
+  needAdmin(req);
+  const { rows } = await pool.query(
+    'SELECT id, email, created_at, is_blocked, is_admin FROM users ORDER BY created_at DESC'
+  );
+  send(res, 200, { users: rows });
+}
+
+// ── Admin: bloquear / desbloquear usuario ─────────────────────
+
+async function adminPatchUser(req, res, userId) {
+  const s = needAdmin(req);
+  if (!UUID_RE.test(userId)) return fail(res, 400, 'ID de usuario inválido');
+  if (userId === s.sub)      return fail(res, 400, 'No puedes modificar tu propia cuenta desde el panel');
+
+  const body = await readBody(req);
+  if (typeof body.is_blocked !== 'boolean') return fail(res, 400, 'Campo is_blocked requerido (boolean)');
+
+  // No se puede bloquear a otro admin
+  const { rows } = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+  if (!rows[0]) return fail(res, 404, 'Usuario no encontrado');
+  if (rows[0].is_admin) return fail(res, 403, 'No se puede bloquear a otro administrador');
+
+  await pool.query('UPDATE users SET is_blocked = $1 WHERE id = $2', [body.is_blocked, userId]);
+  console.log(`[admin] ${new Date().toISOString()} | ${body.is_blocked ? 'BLOCK' : 'UNBLOCK'} | admin=${s.sub} target=${userId}`);
+  send(res, 200, {});
+}
+
+// ── Admin: eliminar usuario y su bóveda ───────────────────────
+
+async function adminDeleteUser(req, res, userId) {
+  const s = needAdmin(req);
+  if (!UUID_RE.test(userId)) return fail(res, 400, 'ID de usuario inválido');
+  if (userId === s.sub)      return fail(res, 400, 'No puedes eliminar tu propia cuenta desde el panel');
+
+  const { rows } = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+  if (!rows[0]) return fail(res, 404, 'Usuario no encontrado');
+  if (rows[0].is_admin) return fail(res, 403, 'No se puede eliminar a otro administrador');
+
+  // ON DELETE CASCADE en vaults y totp_factors — borra todo con el usuario
+  await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+  console.log(`[admin] ${new Date().toISOString()} | DELETE | admin=${s.sub} target=${userId}`);
   send(res, 200, {});
 }
 

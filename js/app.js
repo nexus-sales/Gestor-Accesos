@@ -17,7 +17,7 @@ const sectorColorMap = {};
 // ── Guardar ──────────────────────────────────────────────────
 
 async function save() {
-  try { await saveVaultToSupabase(); }
+  try { await saveVault(); }
   catch (err) { showToast('Error al sincronizar: ' + err.message); }
 }
 
@@ -608,6 +608,7 @@ function isAllowedUrl(value) {
 // ── Renderizado ───────────────────────────────────────────────
 
 function render() {
+  document.getElementById('screen-app')?.setAttribute('data-tab', currentTab);
   const q  = document.getElementById('search').value.toLowerCase();
   const fs = document.getElementById('filterSector').value;
 
@@ -726,7 +727,7 @@ function buildPrivateCard(item, categories) {
 }
 
 function renderNotes(q, typeFilter) {
-  const typeLabels = { procedure: 'Procedimientos', contact: 'Contactos', general: 'Notas generales' };
+  const typeLabels = { procedure: 'Procedimientos', contact: 'Contactos', general: 'Notas generales', learning: 'Aprendizaje' };
   const filter = document.getElementById('filterSector');
   filter.innerHTML = '<option value="">Todas las notas</option>' +
     Object.entries(typeLabels).map(([value, label]) => `<option value="${value}"${value === typeFilter ? ' selected' : ''}>${label}</option>`).join('');
@@ -759,9 +760,10 @@ function renderNotes(q, typeFilter) {
 
 function buildNoteCard(note) {
   const types = {
-    procedure: ['Procedimiento', 'ti-list-check', 'note-procedure'],
-    contact: ['Contacto', 'ti-address-book', 'note-contact'],
-    general: ['Nota general', 'ti-note', 'note-general']
+    procedure: ['Procedimiento', 'ti-list-check',  'note-procedure'],
+    contact:   ['Contacto',      'ti-address-book', 'note-contact'],
+    general:   ['Nota general',  'ti-note',         'note-general'],
+    learning:  ['Aprendizaje',   'ti-brain',        'note-learning'],
   };
   const revealed = revealedNotes.get(note.id)?.data;
   const view = revealed || note;
@@ -792,7 +794,7 @@ function buildNoteCard(note) {
       <i class="ti ti-shield-lock"></i>
       <p>El contenido está cifrado y oculto.</p>
       <button type="button" class="btn" data-action="request-private-note" data-id="${note.id}" data-kind="reveal"><i class="ti ti-lock-open"></i> Desbloquear</button>
-    </div>` : `<div class="note-content">${esc(view.content)}</div>`}
+    </div>` : `<div class="note-content md-content">${renderMarkdown(view.content)}</div>`}
     <footer class="note-footer"><div class="note-tags">${tags}</div><time>${updated}</time></footer>
   </article>`;
 }

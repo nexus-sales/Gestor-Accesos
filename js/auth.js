@@ -28,6 +28,7 @@ function showApp() {
   document.getElementById('screen-auth').classList.add('hidden');
   document.getElementById('screen-app').classList.remove('hidden');
   document.getElementById('menuEmail').textContent = currentUser?.email || '';
+  updateAdminNav();
   updateBtnNew();
   buildColorMap();
   render();
