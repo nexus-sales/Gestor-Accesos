@@ -1,94 +1,92 @@
 # Gestor de Accesos
 
-Gestor de Accesos es una bóveda web para centralizar credenciales de servicios y portales, dominios, cuentas privadas, procedimientos y contactos. Se creó para sustituir documentos dispersos, mensajes y hojas de cálculo por un espacio único, ordenado y protegido.
-
-La aplicación combina una interfaz sencilla con cifrado en el navegador, autenticación mediante Supabase y verificación obligatoria en dos pasos.
-
-## ¿Para qué se ha creado?
-
-En el trabajo diario es frecuente acumular accesos, proveedores, instrucciones y contactos en lugares diferentes. Esto dificulta encontrarlos, mantenerlos actualizados y controlar quién puede consultarlos.
-
-Gestor de Accesos permite:
-
-- Encontrar rápidamente la información de cada servicio.
-- Mantener separadas las credenciales profesionales y privadas.
-- Conservar procedimientos y contactos junto al resto de la operativa.
-- Sincronizar una única bóveda cifrada entre dispositivos.
-- Reducir la exposición de contraseñas y datos sensibles.
+Bóveda web para centralizar credenciales de servicios y portales, dominios, cuentas privadas, notas y aprendizaje. Sustituye documentos dispersos, mensajes y hojas de cálculo por un espacio único, ordenado y protegido con cifrado de extremo a extremo.
 
 ## Funciones principales
 
 ### Servicios
-
-- Organización por sectores y servicios.
-- Compatible con CRMs, portales de formación, extranets y otras herramientas web.
+- Organización por sectores, búsqueda y filtros.
 - URL de acceso, usuario, contraseña, persona de contacto, teléfono, email y observaciones.
-- Búsqueda, filtros y copia rápida de credenciales.
-- Normalización y validación de enlaces antes de abrirlos.
+- Copia rápida de credenciales.
 
 ### Dominios y correo
-
 - Registro de dominios por proveedor o registrador.
-- Acceso directo al panel del proveedor.
-- Almacenamiento de email, contraseña y notas asociadas.
+- Acceso directo al panel del proveedor, email y contraseña asociados.
 
 ### Contraseñas privadas
-
-- Espacio separado para cuentas personales o especialmente sensibles.
-- Cifrado individual del nombre, usuario, contraseña y observaciones de cada ficha.
+- Fichas individuales cifradas: nombre, usuario, contraseña y observaciones.
 - Reautenticación con la contraseña maestra para revelar o editar cada ficha.
-- Clasificación visual por banca, correo, redes sociales, trabajo, APIs, inteligencia artificial, compras u otros.
-- Campos adaptados para guardar API keys y tokens de programas o proveedores de IA.
+- Categorías: banca, correo, redes sociales, trabajo, APIs, IA, compras u otros.
 - Ocultado automático después de 60 segundos.
 
 ### Notas
-
-- Procedimientos, contactos y notas generales.
-- Etiquetas, búsqueda, filtros y notas fijadas.
-- Contactos con empresa, teléfono y correo electrónico.
-- Copia rápida del contenido.
-- Notas privadas con una segunda capa de cifrado.
-- Reautenticación con la contraseña maestra para revelar, copiar o editar una nota privada.
-- Ocultado automático del contenido privado después de 60 segundos.
+- Tipos: **Procedimiento**, **Contacto**, **Nota general**, **Aprendizaje**.
+- Contenido en **Markdown** (encabezados, negrita, cursiva, código, listas).
+- Etiquetas, búsqueda por título y contenido, notas fijadas.
+- Notas privadas con segunda capa de cifrado independiente.
+- Reautenticación con la contraseña maestra para revelar, copiar o editar.
+- Ocultado automático después de 60 segundos.
 
 ### Otras funciones
-
 - Generador de contraseñas seguras.
-- Bloqueo automático por inactividad.
+- Exportación a PDF protegido por contraseña.
+- Bloqueo automático por inactividad (10 minutos).
 - Navegación adaptada a escritorio y móvil.
-- Exportación de la bóveda a un PDF protegido por contraseña.
-- Indicador del estado de sincronización.
-- Iconos propios para pestañas del navegador, accesos directos y pantalla de inicio móvil.
+- Passkeys (WebAuthn) como segundo factor de desbloqueo.
+- Panel de administración para gestionar usuarios (bloquear, desbloquear, eliminar).
 
-## Seguridad
+---
 
-Los datos se cifran en el navegador mediante **AES-GCM de 256 bits**. La clave se deriva de la contraseña maestra con **PBKDF2-SHA-256 y 200.000 iteraciones**.
+## Seguridad y arquitectura
 
-- Supabase almacena el contenido cifrado, no la bóveda en texto legible.
-- La contraseña maestra solo se conserva temporalmente en memoria mientras la bóveda está abierta.
-- El acceso requiere autenticación y un segundo factor TOTP.
-- Las políticas RLS restringen la tabla de la bóveda al propietario con una sesión `aal2`.
-- Las fichas privadas y las notas privadas vuelven a cifrar su contenido dentro de la propia bóveda.
+### Zero-knowledge
+El servidor nunca recibe datos legibles. Todo el cifrado y descifrado ocurre en el navegador.
+
+### Clave de datos (DEK)
+- Al crear la bóveda se generan 32 bytes aleatorios — la **DEK** (Data Encryption Key).
+- La DEK se cifra con la contraseña maestra usando **Argon2id** y se guarda en el servidor como `wrapped_dek` (opaca sin la maestra).
+- La bóveda se cifra con **AES-GCM 256 bits** usando la DEK.
+- La DEK solo existe en memoria mientras la bóveda está abierta.
+
+### Autenticación
+- Registro e inicio de sesión con email y contraseña (hash **bcrypt**, 12 rondas).
+- **2FA TOTP obligatorio** (TOTP RFC 6238 vía otplib) para obtener sesión `aal2`.
+- Sesión mediante cookie **httpOnly** (`ga_session`, JWT HS256, 8 h).
+- **Passkeys WebAuthn** con extensión PRF: la clave derivada del autenticador se combina con la maestra para abrir la bóveda sin escribirla cada vez.
+
+### Servidor
+- API propia en Node.js (`api/index.js`) sobre **PostgreSQL**.
+- Sin dependencias de terceros para autenticación o almacenamiento.
+- Rate limiting en memoria, queries parametrizadas (sin SQL injection).
+- Cabeceras de seguridad: CSP, X-Content-Type-Options, X-Frame-Options, HSTS.
 
 > [!IMPORTANT]
-> La contraseña maestra es también la clave de cifrado. Si se olvida, Supabase puede recuperar el acceso a la cuenta, pero no puede descifrar la bóveda anterior. Esta limitación evita que el servidor o un tercero puedan recuperar los datos sin autorización.
+> La contraseña maestra es la clave de cifrado. Si se pierde, la bóveda no puede descifrarse desde el servidor. Esta limitación es intencional: impide que el servidor o cualquier tercero acceda a los datos.
+
+---
 
 ## Tecnología
 
-- HTML, CSS y JavaScript sin framework.
-- [Supabase](https://supabase.com/) para autenticación, 2FA y almacenamiento.
-- Web Crypto API para el cifrado local.
-- jsPDF y AutoTable para la exportación protegida.
-- Web App Manifest para definir la identidad visual al instalar o añadir la aplicación a la pantalla de inicio.
-- Vercel como opción de despliegue.
+| Capa | Tecnología |
+|---|---|
+| Frontend | HTML, CSS y JavaScript sin framework |
+| Cifrado | Web Crypto API — AES-GCM 256 bit |
+| Derivación de clave | Argon2id (WebAssembly) |
+| Autenticación | Node.js + bcryptjs + jsonwebtoken |
+| 2FA | otplib (TOTP RFC 6238) |
+| Passkeys | WebAuthn API + extensión PRF |
+| Base de datos | PostgreSQL (node-postgres) |
+| PDF | jsPDF + AutoTable |
+| Despliegue | Dokploy + Nixpacks |
+
+---
 
 ## Puesta en marcha
 
 ### Requisitos
 
 - Node.js 18 o posterior.
-- Un proyecto de Supabase.
-- Una tabla `public.vaults_ga` configurada para la bóveda.
+- PostgreSQL 13 o posterior.
 
 ### Configuración local
 
@@ -101,49 +99,80 @@ Los datos se cifran en el navegador mediante **AES-GCM de 256 bits**. La clave s
 2. Crea un archivo `.env` en la raíz:
 
    ```env
-   SUPABASE_URL=https://tu-proyecto.supabase.co
-   SUPABASE_ANON_KEY=tu_clave_anonima
+   DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/gestor_accesos
+   JWT_SECRET=cadena-aleatoria-larga-y-segura
+   NODE_ENV=development
    ```
 
-3. Genera la configuración del navegador:
+3. Crea las tablas en PostgreSQL ejecutando `init.sql`:
 
    ```bash
-   npm run build
+   psql $DATABASE_URL < init.sql
    ```
 
-4. Sirve la carpeta con un servidor web local y abre `index.html`.
+4. (Opcional) Si ya tienes la base de datos de una versión anterior, añade las columnas de administración:
 
-El archivo generado `js/env.js` contiene configuración pública del cliente y está excluido del repositorio. No utilices en el navegador la clave `service_role` de Supabase.
+   ```bash
+   psql $DATABASE_URL < migration_001.sql
+   ```
 
-## Configuración de Supabase
+5. Marca tu cuenta como administrador:
 
-Los usuarios se gestionan desde `auth.users`. La información cifrada de la aplicación se guarda en `public.vaults_ga`, relacionada mediante el identificador del usuario:
+   ```sql
+   UPDATE users SET is_admin = true WHERE email = 'tu@email.com';
+   ```
 
-```text
-public.vaults_ga.user_id = auth.users.id
-```
+6. Inicia el servidor de desarrollo:
 
-Después de crear la tabla, ejecuta [`supabase-rls-mfa.sql`](supabase-rls-mfa.sql) en el SQL Editor de Supabase. Este script activa RLS y exige una sesión con 2FA real para leer o modificar la bóveda.
+   ```bash
+   npm run dev
+   ```
+
+   La aplicación queda disponible en `http://localhost:3000`.
+
+### Variables de entorno
+
+| Variable | Descripción |
+|---|---|
+| `DATABASE_URL` | Cadena de conexión PostgreSQL |
+| `JWT_SECRET` | Secreto para firmar tokens JWT (mín. 32 caracteres aleatorios) |
+| `NODE_ENV` | `production` activa HTTPS-only para la cookie de sesión |
+| `PORT` | Puerto del servidor (por defecto 3000) |
+| `HOST` | Interfaz de red (usar `0.0.0.0` en producción con Dokploy) |
+
+---
+
+## Despliegue en producción (Dokploy)
+
+1. Conecta el repositorio en Dokploy como aplicación **Nixpacks**.
+2. Configura las variables de entorno `DATABASE_URL`, `JWT_SECRET` y `NODE_ENV=production` como **Runtime Environment Variables** (no como build args).
+3. Asegúrate de que `HOST=0.0.0.0` está configurado.
+4. El script de inicio es `npm start` → `node server.js`.
+
+---
 
 ## Estructura del proyecto
 
 ```text
+api/index.js            API REST: autenticación, bóveda y panel de admin
+server.js               Servidor HTTP (enruta /api/* y sirve estáticos)
+init.sql                DDL completo: tablas users, vaults, totp_factors
+migration_001.sql       Añade columnas is_blocked e is_admin a users
 css/styles.css          Interfaz y diseño responsive
 assets/icons/           Favicons, iconos móviles y Web App Manifest
+js/config.js            Cliente HTTP (apiFetch y funciones API)
 js/app.js               Navegación, formularios y CRUD
-js/auth.js              Autenticación, 2FA y bloqueo
-js/crypto.js            Cifrado y derivación de clave
+js/auth.js              Autenticación, 2FA, desbloqueo y bloqueo
+js/admin.js             Panel de administración de usuarios
+js/crypto.js            Cifrado AES-GCM y derivación Argon2id
 js/vault.js             Carga, guardado y migración de la bóveda
+js/markdown.js          Renderizador Markdown ligero para notas
+js/passkey.js           WebAuthn — registro y uso de passkeys
 js/pdf.js               Exportación a PDF protegido
 index.html              Estructura principal de la aplicación
-supabase-rls-mfa.sql    Políticas de seguridad de Supabase
 ```
 
-## Iconos de la aplicación
-
-Los recursos visuales se encuentran en `assets/icons/`. `index.html` enlaza los favicons en formatos ICO, SVG y PNG, el icono de Apple y el archivo `manifest.json`.
-
-El manifiesto identifica la aplicación como **Gestor de Accesos** e incluye imágenes de 192, 512 y 1024 píxeles para accesos directos y dispositivos compatibles. Si se sustituyen los diseños, deben conservarse los nombres y dimensiones actuales o actualizar también sus rutas en `index.html` y `assets/icons/manifest.json`.
+---
 
 ## Privacidad
 
