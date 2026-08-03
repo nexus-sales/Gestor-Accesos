@@ -109,5 +109,7 @@ document.getElementById('list').addEventListener('click', e => {
     case 'request-private-note':     requestPrivateNoteAccess(id, kind); break;
     case 'copy-note':                copyNoteContent(id); break;
     case 'toggle-expand-note':       toggleNoteExpand(id); break;
+    case 'request-crm-private':      requestCrmAccess(id, kind); break;
+    case 'hide-crm-private':         hideCrm(id); break;
   }
 });

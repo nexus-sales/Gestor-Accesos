@@ -10,6 +10,8 @@ const revealedNotes = new Map();
 const privateNoteTimers = new Map();
 const revealedPrivateItems = new Map();
 const privateItemTimers = new Map();
+const revealedCrms = new Map();
+const crmTimers = new Map();
 const expandedNotes = new Set();
 
 const SECTOR_COLORS = ['sc-blue','sc-teal','sc-amber','sc-coral','sc-purple','sc-pink','sc-green','sc-red','sc-gray'];
@@ -135,6 +137,12 @@ function openModal(id) {
     requestPrivateItemAccess(id, 'edit');
     return;
   }
+  const isCrmTab = currentTab === 'crms' || currentTab === 'domains';
+  const requestedCrm = isCrmTab && id ? getCurrentCollection().find(c => c.id === id) : null;
+  if (requestedCrm?.secretData && !revealedCrms.has(id)) {
+    requestCrmAccess(id, 'edit');
+    return;
+  }
   editingId = id || null;
   const titles = { crms: 'servicio', domains: 'Dominio', private: 'Contraseña Privada', notes: 'Nota' };
   document.getElementById('modalTitle').textContent =
@@ -148,15 +156,19 @@ function openModal(id) {
     if (entry) {
       const noteData = currentTab === 'notes' ? (revealedNotes.get(id)?.data || entry) : entry;
       const entryData = currentTab === 'private' ? (revealedPrivateItems.get(id)?.data || entry) : entry;
+      const crmData = isCrmTab ? (revealedCrms.get(id)?.data || entry) : entry;
       document.getElementById('fSector').value = entry.sector || '';
-      document.getElementById('fMarca').value  = currentTab === 'notes' ? (noteData.title || '') : (entryData.marca || '');
+      document.getElementById('fMarca').value  = currentTab === 'notes' ? (noteData.title || '') : (entryData.marca || entry.marca || '');
       document.getElementById('fUrl').value    = entry.url || '';
-      document.getElementById('fUser').value   = entryData.user || '';
-      document.getElementById('fPass').value   = entryData.pass || '';
-      document.getElementById('fObs').value    = currentTab === 'notes' ? (noteData.content || '') : (entryData.obs || '');
+      document.getElementById('fUser').value   = isCrmTab ? (crmData.user || '') : (entryData.user || '');
+      document.getElementById('fPass').value   = isCrmTab ? (crmData.pass || '') : (entryData.pass || '');
+      document.getElementById('fObs').value    = currentTab === 'notes' ? (noteData.content || '') : (isCrmTab ? (crmData.obs || '') : (entryData.obs || ''));
       document.getElementById('fContactPerson').value = entry.contactPerson || '';
       document.getElementById('fContactPhone').value  = entry.contactPhone || '';
       document.getElementById('fServiceEmail').value   = entry.contactEmail || '';
+      if (isCrmTab) {
+        document.getElementById('fCrmPrivate').checked = !!entry.secretData;
+      }
       if (currentTab === 'private') {
         document.getElementById('fPrivateCategory').value = entry.category || 'other';
         configurePrivateCategory();
@@ -180,6 +192,7 @@ function openModal(id) {
     document.getElementById('fNoteType').value = 'procedure';
     document.getElementById('fPinned').checked = false;
     document.getElementById('fNotePrivate').checked = false;
+    document.getElementById('fCrmPrivate').checked = false;
     document.getElementById('fPrivateCategory').value = 'other';
     configurePrivateCategory();
     configureNoteType();
@@ -242,6 +255,7 @@ function configureModalFields() {
   rowContact.classList.remove('hidden');
   grpNoteFields.classList.add('hidden');
   grpPrivateCategory.classList.add('hidden');
+  document.getElementById('grpCrmPrivate').classList.add('hidden');
   lblObs.textContent = 'Observaciones';
   lblPass.textContent = 'Contraseña';
   document.getElementById('fObs').placeholder = 'Notas, módulos, permisos…';
@@ -250,6 +264,7 @@ function configureModalFields() {
 
   if (currentTab === 'crms') {
     grpSector.classList.remove('hidden'); grpUrl.classList.remove('hidden');
+    document.getElementById('grpCrmPrivate').classList.remove('hidden');
     lblSector.innerHTML = 'Sector <span class="required">*</span>';
     fSector.placeholder = 'ej. Automoción';
     lblMarca.innerHTML  = 'Servicio / Portal <span class="required">*</span>';
@@ -260,6 +275,7 @@ function configureModalFields() {
     fUser.placeholder   = 'usuario@dominio.com';
   } else if (currentTab === 'domains') {
     grpSector.classList.remove('hidden'); grpUrl.classList.remove('hidden');
+    document.getElementById('grpCrmPrivate').classList.remove('hidden');
     lblSector.innerHTML = 'Proveedor / Registrador <span class="required">*</span>';
     fSector.placeholder = 'ej. GoDaddy';
     lblMarca.innerHTML  = 'Dominio <span class="required">*</span>';
@@ -362,19 +378,28 @@ async function saveEntry() {
     }
   }
 
+  const isPrivateCrm = document.getElementById('fCrmPrivate').checked;
+  const credentials = {
+    user: document.getElementById('fUser').value.trim(),
+    pass: document.getElementById('fPass').value.trim(),
+    obs:  document.getElementById('fObs').value.trim()
+  };
   const entry = {
     id:      editingId || crypto.randomUUID(),
     sector,
     marca,
     url,
-    user:    document.getElementById('fUser').value.trim(),
-    pass:    document.getElementById('fPass').value.trim(),
     contactPerson: document.getElementById('fContactPerson').value.trim(),
     contactPhone:  document.getElementById('fContactPhone').value.trim(),
     contactEmail:  document.getElementById('fServiceEmail').value.trim(),
-    obs:     document.getElementById('fObs').value.trim(),
+    private: isPrivateCrm,
     created: Date.now()
   };
+  if (isPrivateCrm) {
+    entry.secretData = await encryptWithKey(JSON.stringify(credentials), vaultKey);
+  } else {
+    Object.assign(entry, credentials);
+  }
 
   const collections = { crms, domains, private: privateItems };
   const key = currentTab === 'private' ? 'private' : currentTab;
@@ -382,7 +407,11 @@ async function saveEntry() {
 
   if (editingId) {
     const idx = col.findIndex(x => x.id === editingId);
-    if (idx !== -1) { entry.created = col[idx].created || Date.now(); col[idx] = entry; }
+    if (idx !== -1) {
+      entry.created = col[idx].created || Date.now();
+      if (isPrivateCrm) { crmTimers.delete(editingId); revealedCrms.delete(editingId); }
+      col[idx] = entry;
+    }
   } else {
     col.push(entry);
     if (currentTab !== 'private') getSectorColor(sector);
@@ -905,13 +934,16 @@ async function unlockPrivateNote(event) {
     return;
   }
 
-  // 4) Descifrado de nota / ficha privada con la DEK
+  // 4) Descifrado de nota / ficha privada / credencial CRM con la DEK
   const entry = kind === 'note'
     ? notes.find(i => i.id === id)
-    : privateItems.find(i => i.id === id);
+    : kind === 'crm'
+      ? [...crms, ...domains].find(i => i.id === id)
+      : privateItems.find(i => i.id === id);
   try {
     const data = JSON.parse(await decryptWithKey(entry.secretData, vaultKey));
     if (kind === 'note') revealPrivateNoteTemporarily(id, data);
+    else if (kind === 'crm') revealCrmTemporarily(id, data);
     else revealPrivateItemTemporarily(id, data);
     closePrivateNoteAccess();
     resetInactivity();
@@ -986,6 +1018,9 @@ function clearAllPrivateNoteAccess() {
   privateItemTimers.forEach(timer => clearTimeout(timer));
   privateItemTimers.clear();
   revealedPrivateItems.clear();
+  crmTimers.forEach(timer => clearTimeout(timer));
+  crmTimers.clear();
+  revealedCrms.clear();
   pendingPrivateAccess = null;
   document.getElementById('privateNoteOverlay')?.classList.add('hidden');
 }
@@ -1000,8 +1035,37 @@ function privateNoteOverlayClick(event) {
   if (event.target === document.getElementById('privateNoteOverlay')) closePrivateNoteAccess();
 }
 
+function requestCrmAccess(id, action = 'reveal') {
+  const col = [...crms, ...domains];
+  const item = col.find(c => c.id === id);
+  if (!item?.secretData) return;
+  pendingPrivateAccess = { kind: 'crm', id, action };
+  openPrivateAccessDialog('Desbloquear credenciales');
+}
+
+function revealCrmTemporarily(id, data) {
+  if (crmTimers.has(id)) clearTimeout(crmTimers.get(id));
+  revealedCrms.set(id, { data });
+  crmTimers.set(id, setTimeout(() => hideCrm(id), 60000));
+}
+
+function hideCrm(id, shouldRender = true) {
+  if (crmTimers.has(id)) clearTimeout(crmTimers.get(id));
+  crmTimers.delete(id);
+  revealedCrms.delete(id);
+  if (editingId === id) {
+    document.getElementById('modalOverlay').classList.add('hidden');
+    editingId = null;
+    showToast('Credenciales ocultadas');
+  }
+  if (shouldRender && (currentTab === 'crms' || currentTab === 'domains')) render();
+}
+
 function buildCard(c, isPrivate = false) {
-  const passHidden = c.pass ? '•'.repeat(Math.min(c.pass.length, 10)) : '—';
+  const revealed = revealedCrms.get(c.id)?.data;
+  const view = revealed || c;
+  const isLocked = !!c.secretData && !revealed;
+  const passHidden = view.pass ? '•'.repeat(Math.min(view.pass.length, 10)) : '—';
   const border = isPrivate ? ' style="border-left:3px solid #a32d2d"' : '';
   const accentClass = isPrivate ? '' : getSectorColor(c.sector);
   const normalizedUrl = normalizeUrl(c.url);
@@ -1011,11 +1075,12 @@ function buildCard(c, isPrivate = false) {
     ${c.contactPhone ? `<a href="tel:${escAttr(c.contactPhone)}"><i class="ti ti-phone"></i>${esc(c.contactPhone)}</a>` : ''}
     ${c.contactEmail ? `<a href="mailto:${escAttr(c.contactEmail)}"><i class="ti ti-mail"></i>${esc(c.contactEmail)}</a>` : ''}
   </div>` : '';
-  return `<article class="crm-card ${accentClass}"${border}>
+  return `<article class="crm-card ${accentClass}${isLocked ? ' crm-card-locked' : ''}"${border}>
     <div class="crm-card-header">
-      <span class="crm-brand">${esc(c.marca)}</span>
+      <span class="crm-brand">${esc(c.marca)}${c.private ? ' <i class="ti ti-lock crm-lock-badge" title="Credenciales cifradas"></i>' : ''}</span>
       <div class="crm-actions">
-        <button type="button" class="icon-btn" data-action="open-modal" data-id="${c.id}" aria-label="Editar ${esc(c.marca)}">
+        ${c.private && revealed ? `<button type="button" class="icon-btn" data-action="hide-crm-private" data-id="${c.id}" aria-label="Ocultar credenciales"><i class="ti ti-eye-off"></i></button>` : ''}
+        <button type="button" class="icon-btn" data-action="${isLocked ? 'request-crm-private' : 'open-modal'}" data-id="${c.id}" ${isLocked ? 'data-kind="edit"' : ''} aria-label="Editar ${esc(c.marca)}">
           <i class="ti ti-edit"></i>
         </button>
         <button type="button" class="icon-btn danger" data-action="delete-entry" data-id="${c.id}" aria-label="Eliminar ${esc(c.marca)}">
@@ -1026,12 +1091,19 @@ function buildCard(c, isPrivate = false) {
     ${url ? `<a class="crm-url" href="${escAttr(url)}" target="_blank" rel="noopener">
       <i class="ti ti-external-link"></i>${esc(url)}
     </a>` : ''}
-    <div class="crm-fields">
+    ${contactMeta}
+    ${isLocked ? `<div class="crm-cred-locked">
+      <i class="ti ti-shield-lock"></i>
+      <span>Credenciales cifradas</span>
+      <button type="button" class="btn crm-unlock-btn" data-action="request-crm-private" data-id="${c.id}" data-kind="reveal">
+        <i class="ti ti-lock-open"></i> Desbloquear
+      </button>
+    </div>` : `<div class="crm-fields">
       <div class="crm-field">
-        <label>${isPrivate ? 'Usuario / ID' : 'Usuario'}</label>
+        <label>Usuario</label>
         <div class="crm-field-val">
-          <span>${esc(c.user || '—')}</span>
-          ${c.user ? `<button type="button" class="copy-field" data-action="copy-entry-field" data-id="${c.id}" data-field="user" data-msg="Usuario copiado" aria-label="Copiar usuario">
+          <span>${esc(view.user || '—')}</span>
+          ${view.user ? `<button type="button" class="copy-field" data-action="copy-entry-field" data-id="${c.id}" data-field="user" data-msg="Usuario copiado" aria-label="Copiar usuario">
             <i class="ti ti-copy"></i>
           </button>` : ''}
         </div>
@@ -1039,8 +1111,8 @@ function buildCard(c, isPrivate = false) {
       <div class="crm-field">
         <label>Contraseña</label>
         <div class="crm-field-val">
-          <span id="pass-${c.id}">${c.pass ? passHidden : '—'}</span>
-          ${c.pass ? `<span class="crm-inline-actions">
+          <span id="pass-${c.id}">${view.pass ? passHidden : '—'}</span>
+          ${view.pass ? `<span class="crm-inline-actions">
             <button type="button" class="toggle-pass" id="passBtn-${c.id}"
               data-action="toggle-card-pass" data-id="${c.id}" aria-label="Mostrar/ocultar contraseña">
               <i class="ti ti-eye"></i>
@@ -1052,8 +1124,7 @@ function buildCard(c, isPrivate = false) {
         </div>
       </div>
     </div>
-    ${contactMeta}
-    ${c.obs ? `<div class="crm-obs">${esc(c.obs)}</div>` : ''}
+    ${view.obs ? `<div class="crm-obs">${esc(view.obs)}</div>` : ''}`}
   </article>`;
 }
 
