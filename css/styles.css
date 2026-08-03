@@ -952,8 +952,9 @@ body {
 .sector-label, .sector-count { font-size: 13px; }
 .form-group label, .auth-error, .auth-info, .auth-alt, .link-btn { font-size: 14px; }
 .form-group input[type=text], .form-group input[type=email], .form-group input[type=url],
-.form-group input[type=password], .form-group textarea { height: 46px; font-size: 16px; }
+.form-group input[type=password] { height: 46px; font-size: 16px; }
 .form-group input[type=tel], .form-group select { height: 46px; font-size: 16px; }
+.form-group textarea { height: 100px; font-size: 16px; }
 #fObs.notes-obs { height: 220px; min-height: 140px; resize: vertical; }
 .modal { max-width: 560px; }
 .modal-header h2 { font-size: 21px; }
